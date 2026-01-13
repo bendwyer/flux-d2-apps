@@ -84,7 +84,7 @@ spec:
               readOnly: true
             - name: asc
               mountPath: /omni.asc
-              subPath: omni.asc
+              subPath: OMNI_ASC
               readOnly: true
             - name: data
               mountPath: /_out
