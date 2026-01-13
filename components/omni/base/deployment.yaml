@@ -21,7 +21,7 @@ spec:
         - name: omni
           image: ghcr.io/siderolabs/omni:v1.4.7 # {"$imagepolicy": "omni:omni"}
           args:
-            - --name=${OMNI_NAME}
+            - --name=omni
             - --account-id=${OMNI_ACCOUNT_ID}
             - --private-key-source=file:///omni.asc
             - --event-sink-port=8091
@@ -96,7 +96,7 @@ spec:
             secretName: omni-tls
         - name: asc
           secret:
-            secretName: omni-asc
+            secretName: omni
         - name: data
           hostPath:
             path: /var/mnt/omni-data/
