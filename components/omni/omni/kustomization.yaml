@@ -5,7 +5,4 @@ kind: Kustomization
 resources:
   - ../base
   - certificate.yaml
-  - configmap.yaml
-  - onepassword-configuration.yaml
-  - onepassword-etcd.yaml
-  - onepassword-oidc.yaml
+  - onepassworditem.yaml
