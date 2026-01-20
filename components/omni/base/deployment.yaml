@@ -47,6 +47,7 @@ spec:
             - --key=/etc/omni/tls/tls.key
             - --machine-api-cert=/etc/omni/tls/tls.crt
             - --machine-api-key=/etc/omni/tls/tls.key
+            - --workload-proxying-subdomain=proxy
           ports:
             - name: https
               containerPort: 443

@@ -13,4 +13,4 @@ spec:
     group: cert-manager.io
   dnsNames:
     - ${OMNI_SUBDOMAIN}.${OMNI_DOMAIN}
-    - "*.proxy-us.${OMNI_DOMAIN}"
+    - "*.proxy.${OMNI_DOMAIN}"
