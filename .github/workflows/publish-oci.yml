@@ -28,6 +28,7 @@ jobs:
         component:
           # add additional applications here
           - omni
+          - flux-webui
     steps:
       - name: Checkout
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
