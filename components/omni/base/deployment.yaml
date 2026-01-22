@@ -4,17 +4,19 @@ kind: Deployment
 metadata:
   name: omni
   namespace: omni
+  labels:
+    app.kubernetes.io/name: omni
 spec:
   replicas: 1
   strategy:
     type: Recreate
   selector:
     matchLabels:
-      app: omni
+      app.kubernetes.io/name: omni
   template:
     metadata:
       labels:
-        app: omni
+        app.kubernetes.io/name: omni
     spec:
       priorityClassName: system-cluster-critical
       containers:
