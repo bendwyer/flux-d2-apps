@@ -8,5 +8,4 @@ metadata:
   annotations:
     omni-kube-service-exposer.sidero.dev/port: "58080"
     omni-kube-service-exposer.sidero.dev/label: Goldilocks
-    omni-kube-service-exposer.sidero.dev/prefix: goldilocks
     omni-kube-service-exposer.sidero.dev/icon: H4sICHRmcWkAA2ZhaXJ3aW5kcy1sb2dvLWNyb3BwZWQuc3ZnAH2Qy07DMBBF1/QrrGFrxq88nJK0EpUqNuwo+6oNSaSQRLWVpCD+nampEBuw5PFD5x6PnK/nt5aN5ck1fVeAQgms7A79semqAnbP2zsL69Uid2P1m1LAKNe5Amrvh6UQ0zThZLA/VUJLKQXxwMamnB76uQDJJLMxyzQauMj8uS2ZPw9lAb6cvTg4R/c36Lz8eG3adnm7DeP+c5GLQFOqIiIf9r5mh3bv6GmigR0LeEo1xlxHaB4lRi80axvRRukNrZYrSyXN0ASG/9DvIP5URooysQ1CE6GqY4PpqBQmm5iOPL5IIosJQfwK/+dTmmcK0+BLUrS1Nph9+6gVzW1ChRpNA8aveDDmoroU+tHV4gvmctuIrwEAAA==
