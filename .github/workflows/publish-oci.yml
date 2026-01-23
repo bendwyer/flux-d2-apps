@@ -29,6 +29,7 @@ jobs:
           # add additional applications here
           - flux-webui
           - goldilocks-webui
+          - longhorn-webui
           - omni
     steps:
       - name: Checkout
