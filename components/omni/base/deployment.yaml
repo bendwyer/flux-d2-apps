@@ -33,7 +33,7 @@ spec:
             - --k8s-proxy-bind-addr=0.0.0.0:8100
             - --advertised-api-url=https://${OMNI_SUBDOMAIN}.${OMNI_DOMAIN}/
             - --advertised-kubernetes-proxy-url=https://${OMNI_SUBDOMAIN}.${OMNI_DOMAIN}:8100/
-            - --siderolink-api-advertised-url=https://${OMNI_SUBDOMAIN}.${OMNI_DOMAIN}:8090/
+            - --siderolink-api-advertised-url=https://api-${OMNI_SUBDOMAIN}.${OMNI_DOMAIN}:8090/
             - --siderolink-wireguard-advertised-addr=${OMNI_IP}:50180
             - --auth-oidc-enabled
             - --auth-oidc-provider-url=${OIDC_PROVIDER_URL}
