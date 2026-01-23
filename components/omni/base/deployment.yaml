@@ -52,22 +52,18 @@ spec:
             - name: https
               containerPort: 443
               hostPort: 443
-              hostIP: ${OMNI_IP}
               protocol: TCP
             - name: siderolink
               containerPort: 8090
               hostPort: 8090
-              hostIP: ${OMNI_IP}
               protocol: TCP
             - name: k8s-proxy
               containerPort: 8100
               hostPort: 8100
-              hostIP: ${OMNI_IP}
               protocol: TCP
             - name: wireguard
               containerPort: 50180
               hostPort: 50180
-              hostIP: ${OMNI_IP}
               protocol: UDP
           securityContext:
             capabilities:
