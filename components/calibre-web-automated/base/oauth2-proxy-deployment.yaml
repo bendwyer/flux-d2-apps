@@ -39,22 +39,22 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: calibre-web-automated
-                  key: oidc-issuer-url
+                  key: oidc_issuer_url
             - name: OAUTH2_PROXY_CLIENT_ID
               valueFrom:
                 secretKeyRef:
                   name: calibre-web-automated
-                  key: oauth2-client-id
+                  key: oauth2_client_id
             - name: OAUTH2_PROXY_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: calibre-web-automated
-                  key: oauth2-client-secret
+                  key: oauth2_client_secret
             - name: OAUTH2_PROXY_COOKIE_SECRET
               valueFrom:
                 secretKeyRef:
                   name: calibre-web-automated
-                  key: oauth2-cookie-secret
+                  key: oauth2_cookie_secret
           ports:
             - name: http
               containerPort: 4180
