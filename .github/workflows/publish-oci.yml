@@ -27,6 +27,7 @@ jobs:
       matrix:
         component:
           # add additional applications here
+          - calibre-web-automated
           - flux-webui
           - goldilocks-webui
           - longhorn-webui
