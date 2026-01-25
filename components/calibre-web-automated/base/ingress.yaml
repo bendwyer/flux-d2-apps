@@ -6,6 +6,7 @@ metadata:
   namespace: calibre-web-automated
   annotations:
     tailscale.com/proxy-group: home-ingress
+    tailscale.com/http-redirect: "true"
 spec:
   ingressClassName: tailscale
   tls:
