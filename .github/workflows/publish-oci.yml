@@ -30,6 +30,7 @@ jobs:
           - calibre-web-automated
           - flux-webui
           - goldilocks-webui
+          - kavita
           - longhorn-webui
           - omni
     steps:
