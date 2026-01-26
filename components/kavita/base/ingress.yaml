@@ -1,0 +1,24 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kavita
+  namespace: kavita
+  annotations:
+    tailscale.com/proxy-group: home-ingress
+    tailscale.com/http-redirect: "true"
+spec:
+  ingressClassName: tailscale
+  tls:
+    - hosts:
+        - kavita
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kavita
+                port:
+                  name: http
