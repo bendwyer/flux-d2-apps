@@ -28,7 +28,8 @@ spec:
               args:
                 - |
                   cp /secret/kobodl.json /tmp/kobodl.json &&
-                  kobodl --config /tmp/kobodl.json book get --get-all --output-dir /library/kobo --format-str '{Author}/{Title}'
+                  mkdir -p /library/kobo &&
+                  kobodl --config /tmp/kobodl.json book get --get-all --output-dir /library/kobo --format-str '{Title} - {ShortRevisionId}'
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
