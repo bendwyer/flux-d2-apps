@@ -5,7 +5,7 @@ metadata:
   name: calibre
   namespace: books
   annotations:
-    tailscale.com/proxy-group: home-ingress
+    tailscale.com/proxy-group: private-ingress
     tailscale.com/http-redirect: "true"
 spec:
   ingressClassName: tailscale
