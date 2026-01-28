@@ -1,8 +1,0 @@
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: calibre-web-automated
-  labels:
-    goldilocks.fairwinds.com/enabled: "true"  
-    name: calibre-web-automated
