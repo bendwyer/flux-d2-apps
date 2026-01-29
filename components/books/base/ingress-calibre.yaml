@@ -6,6 +6,7 @@ metadata:
   namespace: books
   annotations:
     tailscale.com/proxy-group: private-ingress
+    tailscale.com/tags: tag:k8s-private
     tailscale.com/http-redirect: "true"
 spec:
   ingressClassName: tailscale
