@@ -58,4 +58,4 @@ spec:
               emptyDir: {}
             - name: library
               persistentVolumeClaim:
-                claimName: library-pvc
+                claimName: library-shared-pvc
