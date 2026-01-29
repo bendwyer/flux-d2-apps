@@ -17,11 +17,13 @@ spec:
         containers:
           app:
             image:
-              repository: ghcr.io/kareadita/kavita
-              digest: sha256:1f2acae7466d022f037ea09f7989eb7c487f916b881174c7a6de33dbfa8acb39 # 0.8.9
+              repository: lscr.io/linuxserver/kavita
+              digest: sha256:ab8d4b81d59ae5c4410bcc1102a7378c72d6cb17a26f350f5fa678b6e376dd3a # 0.8.9
               pullPolicy: IfNotPresent
             env:
               TZ: Europe/Berlin
+              PUID: "1000"
+              PGID: "1000"
             resources:
               requests:
                 cpu: 100m
@@ -56,7 +58,7 @@ spec:
         enabled: true
         existingClaim: kavita-config-pvc
         globalMounts:
-          - path: /kavita/config
+          - path: /config
       library:
         enabled: true
         existingClaim: library-pvc
