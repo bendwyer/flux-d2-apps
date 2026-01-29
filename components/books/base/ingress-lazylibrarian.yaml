@@ -2,7 +2,7 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: calibre
+  name: lazylibrarian
   namespace: books
   annotations:
     tailscale.com/proxy-group: private-ingress
@@ -12,7 +12,7 @@ spec:
   ingressClassName: tailscale
   tls:
     - hosts:
-        - calibre
+        - lazylibrarian
   rules:
     - http:
         paths:
@@ -20,6 +20,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: calibre
+                name: lazylibrarian
                 port:
                   name: http

@@ -3,7 +3,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: kavita
+  name: mylar3
   namespace: books
 spec:
   interval: 1h
@@ -13,12 +13,12 @@ spec:
     namespace: bjw-s
   values:
     controllers:
-      kavita:
+      mylar3:
         containers:
           app:
             image:
-              repository: lscr.io/linuxserver/kavita
-              digest: sha256:ab8d4b81d59ae5c4410bcc1102a7378c72d6cb17a26f350f5fa678b6e376dd3a # 0.8.9
+              repository: lscr.io/linuxserver/mylar3
+              digest: sha256:b89a630ba4ebb7d7192bf82acf603befc1a0bb71f646f4b949b66775ff352412 # 0.8.3
               pullPolicy: IfNotPresent
             env:
               TZ: Europe/Berlin
@@ -27,36 +27,37 @@ spec:
             resources:
               requests:
                 cpu: 100m
-                memory: 1Gi
+                memory: 256Mi
               limits:
-                memory: 1Gi
+                memory: 512Mi
             probes:
               liveness:
                 enabled: true
                 type: HTTP
-                path: /api/health
-                port: 5000
+                path: /
+                port: 8090
                 spec:
                   initialDelaySeconds: 30
-                  periodSeconds: 10
+                  periodSeconds: 30
+                  timeoutSeconds: 10
               readiness:
                 enabled: true
                 type: HTTP
-                path: /api/health
-                port: 5000
+                path: /
+                port: 8090
                 spec:
-                  initialDelaySeconds: 5
-                  periodSeconds: 5
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
     service:
-      kavita:
-        controller: kavita
+      mylar3:
+        controller: mylar3
         ports:
           http:
-            port: 5000
+            port: 8090
     persistence:
       config:
         enabled: true
-        existingClaim: kavita-config-pvc
+        existingClaim: mylar3-config-pvc
         globalMounts:
           - path: /config
       library:

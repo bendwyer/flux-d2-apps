@@ -3,7 +3,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: calibre
+  name: lazylibrarian
   namespace: books
 spec:
   interval: 1h
@@ -13,14 +13,12 @@ spec:
     namespace: bjw-s
   values:
     controllers:
-      calibre:
-        pod:
-          terminationGracePeriodSeconds: 300
+      lazylibrarian:
         containers:
           app:
             image:
-              repository: lscr.io/linuxserver/calibre
-              digest: sha256:296486899c825c5106b0de5672c0b14188ae7e45003b2c33b767c6bc32090ee2 # 8.16.2
+              repository: lscr.io/linuxserver/lazylibrarian
+              digest: sha256:90c75a831faf84bfa780e1d3950078ff03b6280dad0bde860c6864a68dca93d7 # 2daa3258-ls246
               pullPolicy: IfNotPresent
             env:
               TZ: Europe/Berlin
@@ -28,16 +26,16 @@ spec:
               PGID: "1000"
             resources:
               requests:
-                cpu: 250m
-                memory: 4Gi
+                cpu: 100m
+                memory: 256Mi
               limits:
-                memory: 4Gi
+                memory: 512Mi
             probes:
               liveness:
                 enabled: true
                 type: HTTP
-                path: /
-                port: 8080
+                path: /home
+                port: 5299
                 spec:
                   initialDelaySeconds: 30
                   periodSeconds: 30
@@ -45,25 +43,25 @@ spec:
               readiness:
                 enabled: true
                 type: HTTP
-                path: /
-                port: 8080
+                path: /home
+                port: 5299
                 spec:
                   initialDelaySeconds: 10
                   periodSeconds: 10
     service:
-      calibre:
-        controller: calibre
+      lazylibrarian:
+        controller: lazylibrarian
         ports:
           http:
-            port: 8080
+            port: 5299
     persistence:
       config:
         enabled: true
-        existingClaim: calibre-config-pvc
+        existingClaim: lazylibrarian-config-pvc
         globalMounts:
           - path: /config
       library:
         enabled: true
-        existingClaim: library-pvc
+        existingClaim: library-shared-pvc
         globalMounts:
           - path: /books
