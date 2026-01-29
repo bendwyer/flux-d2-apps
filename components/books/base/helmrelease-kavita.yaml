@@ -61,6 +61,6 @@ spec:
           - path: /config
       library:
         enabled: true
-        existingClaim: library-pvc
+        existingClaim: library-shared-pvc
         globalMounts:
           - path: /books
