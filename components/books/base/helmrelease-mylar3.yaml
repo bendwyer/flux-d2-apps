@@ -1,0 +1,67 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: mylar3
+  namespace: books
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: bjw-s
+  values:
+    controllers:
+      mylar3:
+        containers:
+          app:
+            image:
+              repository: lscr.io/linuxserver/mylar3
+              digest: sha256:b89a630ba4ebb7d7192bf82acf603befc1a0bb71f646f4b949b66775ff352412 # 0.8.3
+              pullPolicy: IfNotPresent
+            env:
+              TZ: Europe/Berlin
+              PUID: "1000"
+              PGID: "1000"
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                memory: 512Mi
+            probes:
+              liveness:
+                enabled: true
+                type: HTTP
+                path: /
+                port: 8090
+                spec:
+                  initialDelaySeconds: 30
+                  periodSeconds: 30
+                  timeoutSeconds: 10
+              readiness:
+                enabled: true
+                type: HTTP
+                path: /
+                port: 8090
+                spec:
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+    service:
+      mylar3:
+        controller: mylar3
+        ports:
+          http:
+            port: 8090
+    persistence:
+      config:
+        enabled: true
+        existingClaim: mylar3-config-pvc
+        globalMounts:
+          - path: /config
+      library:
+        enabled: true
+        existingClaim: library-shared-pvc
+        globalMounts:
+          - path: /books
