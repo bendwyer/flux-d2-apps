@@ -14,4 +14,4 @@ TYPE="$1"
 
 kubectl exec -n books \
   "$(kubectl -n books get pods -l app.kubernetes.io/name=kavita -o jsonpath='{.items[0].metadata.name}')" \
-  -- rm -rf "/books/incoming/${TYPE}/.markers"
+  -- sh -c "rm -rf /books/incoming/${TYPE}/.markers/*"
