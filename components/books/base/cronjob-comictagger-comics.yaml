@@ -41,6 +41,7 @@ spec:
                   comictagger \
                     --no-gui \
                     -r \
+                    --tags-read cr \
                     --no-abort \
                     --move \
                     --dir /books/library/comics \
