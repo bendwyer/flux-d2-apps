@@ -1,0 +1,60 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: manga-convert
+  namespace: books
+spec:
+  schedule: "15 */6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: manga-convert
+              image: ghcr.io/bendwyer/epub2cbz@sha256:82c65a7e815dc431d9644be966eb010c0d77fa7540cf001fb3ad2f14ff2a4353 # 1.0.0
+              command: ["python3", "/app/epub2cbz.py"]
+              args:
+                - --input-dir
+                - /books/sources/kobo
+                - --output-dir
+                - /books/incoming/manga
+                - --min-size
+                - "50"
+                - --marker-dir
+                - /config/markers
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 512Mi
+              volumeMounts:
+                - name: library
+                  mountPath: /books
+                - name: config
+                  mountPath: /config
+          volumes:
+            - name: library
+              persistentVolumeClaim:
+                claimName: library-shared-pvc
+            - name: config
+              persistentVolumeClaim:
+                claimName: manga-convert-config-pvc
