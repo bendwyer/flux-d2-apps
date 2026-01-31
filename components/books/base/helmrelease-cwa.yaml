@@ -18,7 +18,7 @@ spec:
           app:
             image:
               repository: crocodilestick/calibre-web-automated
-              tag: v4.0.1
+              tag: v4.0.3
               pullPolicy: IfNotPresent
             env:
               TZ: Europe/Berlin
@@ -59,10 +59,6 @@ spec:
         existingClaim: cwa-config-pvc
         globalMounts:
           - path: /config
-      cwa-library:
-        enabled: true
-        existingClaim: cwa-config-pvc
-        globalMounts:
           - path: /calibre-library
       books:
         enabled: true
