@@ -2,10 +2,10 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: kobo-sync
+  name: manga-convert
   namespace: books
 spec:
-  schedule: "0 */6 * * *"
+  schedule: "15 */6 * * *"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
@@ -22,14 +22,18 @@ spec:
             seccompProfile:
               type: RuntimeDefault
           containers:
-            - name: kobo-sync
-              image: ghcr.io/subdavis/kobodl@sha256:5439b54edcd16211dd6b1567f1b3a976f21770851be29cf0269de8d52b93717b # sha-79d4d8d
-              command: ["sh", "-c"]
+            - name: manga-convert
+              image: ghcr.io/bendwyer/epub2cbz@sha256:82c65a7e815dc431d9644be966eb010c0d77fa7540cf001fb3ad2f14ff2a4353 # 1.0.0
+              command: ["python3", "/app/epub2cbz.py"]
               args:
-                - |
-                  cp /secret/kobodl.json /tmp/kobodl.json &&
-                  mkdir -p /books/sources/kobo &&
-                  kobodl --config /tmp/kobodl.json book get --get-all --output-dir /books/sources/kobo --format-str '{Title} - {Author} ({ShortRevisionId})'
+                - --input-dir
+                - /books/sources/kobo
+                - --output-dir
+                - /books/incoming/manga
+                - --min-size
+                - "50"
+                - --marker-dir
+                - /config/markers
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
@@ -43,19 +47,14 @@ spec:
                 limits:
                   memory: 512Mi
               volumeMounts:
-                - name: config-secret
-                  mountPath: /secret
-                  readOnly: true
-                - name: tmp
-                  mountPath: /tmp
                 - name: library
                   mountPath: /books
+                - name: config
+                  mountPath: /config
           volumes:
-            - name: config-secret
-              secret:
-                secretName: kobo-credentials
-            - name: tmp
-              emptyDir: {}
             - name: library
               persistentVolumeClaim:
                 claimName: library-shared-pvc
+            - name: config
+              persistentVolumeClaim:
+                claimName: manga-convert-config-pvc
