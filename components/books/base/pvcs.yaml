@@ -41,12 +41,12 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: mylar3-config-pvc
+  name: manga-convert-config-pvc
   namespace: books
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 2Gi
+      storage: 1Gi
   storageClassName: longhorn
