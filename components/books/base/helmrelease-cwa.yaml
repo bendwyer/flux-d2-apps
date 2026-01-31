@@ -3,7 +3,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: lazylibrarian
+  name: calibre
   namespace: books
 spec:
   interval: 1h
@@ -13,12 +13,12 @@ spec:
     namespace: bjw-s
   values:
     controllers:
-      lazylibrarian:
+      calibre:
         containers:
           app:
             image:
-              repository: lscr.io/linuxserver/lazylibrarian
-              digest: sha256:90c75a831faf84bfa780e1d3950078ff03b6280dad0bde860c6864a68dca93d7 # 2daa3258-ls246
+              repository: crocodilestick/calibre-web-automated
+              tag: v4.0.1
               pullPolicy: IfNotPresent
             env:
               TZ: Europe/Berlin
@@ -26,42 +26,53 @@ spec:
               PGID: "1000"
             resources:
               requests:
-                cpu: 100m
-                memory: 256Mi
+                cpu: 250m
+                memory: 1Gi
               limits:
-                memory: 512Mi
+                memory: 1Gi
             probes:
               liveness:
                 enabled: true
                 type: HTTP
-                path: /home
-                port: 5299
+                path: /
+                port: 8083
                 spec:
                   initialDelaySeconds: 30
-                  periodSeconds: 30
-                  timeoutSeconds: 10
+                  periodSeconds: 10
               readiness:
                 enabled: true
                 type: HTTP
-                path: /home
-                port: 5299
+                path: /
+                port: 8083
                 spec:
-                  initialDelaySeconds: 10
-                  periodSeconds: 10
+                  initialDelaySeconds: 5
+                  periodSeconds: 5
     service:
-      lazylibrarian:
-        controller: lazylibrarian
+      calibre:
+        controller: calibre
         ports:
           http:
-            port: 5299
+            port: 8083
     persistence:
       config:
         enabled: true
-        existingClaim: lazylibrarian-config-pvc
+        existingClaim: calibre-config-pvc
         globalMounts:
           - path: /config
+      calibre-library:
+        enabled: true
+        existingClaim: calibre-config-pvc
+        globalMounts:
+          - path: /calibre-library
+      ingest:
+        enabled: true
+        existingClaim: library-shared-pvc
+        globalMounts:
+          - path: /cwa-book-ingest
+            subPath: incoming/ebooks
       library:
         enabled: true
         existingClaim: library-shared-pvc
         globalMounts:
-          - path: /books
+          - path: /books/library/ebooks
+            subPath: library/ebooks
