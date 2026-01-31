@@ -32,6 +32,7 @@ spec:
                     -s \
                     -o \
                     -f \
+                    --tags-write cr \
                     --source comicvine \
                     --comicvine-key "$(cat /secret/credential)" \
                     --no-abort \
