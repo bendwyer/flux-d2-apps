@@ -32,6 +32,7 @@ spec:
                     -s \
                     -o \
                     -f \
+                    --tags-write cr \
                     --source mangabaka \
                     --no-abort \
                     --config /config \
