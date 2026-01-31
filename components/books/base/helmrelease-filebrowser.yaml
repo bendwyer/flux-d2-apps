@@ -50,9 +50,8 @@ spec:
           http:
             port: 80
     persistence:
-      incoming:
+      books:
         enabled: true
         existingClaim: library-shared-pvc
         globalMounts:
-          - path: /srv
-            subPath: incoming
+          - path: /books
