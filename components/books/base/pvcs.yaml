@@ -28,7 +28,7 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: calibre-config-pvc
+  name: cwa-config-pvc
   namespace: books
 spec:
   accessModes:
