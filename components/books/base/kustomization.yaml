@@ -5,13 +5,16 @@ kind: Kustomization
 resources:
   - cronjob-comictagger-comics.yaml
   - cronjob-comictagger-manga.yaml
+  - cronjob-stage-ebook.yaml  
   - cronjob-humble-comics.yaml
   - cronjob-humble-manga.yaml
   - cronjob-kobo.yaml
   - cronjob-manga-convert.yaml
-  - helmrelease-kavita.yaml
-  - helmrelease-lazylibrarian.yaml
-  - ingress-kavita.yaml
-  - ingress-lazylibrarian.yaml
+  - helmrelease-cwa.yaml
+  - helmrelease-filebrowser.yaml
+  - helmrelease-kavita.yaml  
+  - ingress-cwa.yaml
+  - ingress-filebrowser.yaml
+  - ingress-kavita.yaml  
   - namespace.yaml
   - pvcs.yaml
