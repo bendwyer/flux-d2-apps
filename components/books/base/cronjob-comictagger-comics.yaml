@@ -29,11 +29,17 @@ spec:
                 - |
                   comictagger \
                     --no-gui \
-                    -r \
+                    -s \
                     -o \
                     -f \
                     --source comicvine \
                     --comicvine-key "$(cat /secret/credential)" \
+                    --no-abort \
+                    --config /config \
+                    /books/incoming/comics &&
+                  comictagger \
+                    --no-gui \
+                    -r \
                     --no-abort \
                     --move \
                     --dir /books/library/comics \

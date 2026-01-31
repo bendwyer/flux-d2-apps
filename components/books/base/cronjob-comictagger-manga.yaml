@@ -29,10 +29,16 @@ spec:
                 - |
                   comictagger \
                     --no-gui \
-                    -r \
+                    -s \
                     -o \
                     -f \
                     --source mangabaka \
+                    --no-abort \
+                    --config /config \
+                    /books/incoming/manga &&
+                  comictagger \
+                    --no-gui \
+                    -r \
                     --no-abort \
                     --move \
                     --dir /books/library/manga \
