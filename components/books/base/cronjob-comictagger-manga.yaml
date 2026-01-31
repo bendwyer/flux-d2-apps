@@ -36,7 +36,7 @@ spec:
                     --source mangabaka \
                     --no-abort \
                     --config /config \
-                    /books/incoming/manga &&
+                    /books/incoming/manga/*.cbz &&
                   comictagger \
                     --no-gui \
                     -r \
@@ -46,7 +46,7 @@ spec:
                     --dir /books/library/manga \
                     --template "{series}/{series} #{issue} ({year})" \
                     --config /config \
-                    /books/incoming/manga
+                    /books/incoming/manga/*.cbz
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true

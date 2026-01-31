@@ -37,7 +37,7 @@ spec:
                     --comicvine-key "$(cat /secret/credential)" \
                     --no-abort \
                     --config /config \
-                    /books/incoming/comics &&
+                    /books/incoming/comics/*.cbz &&
                   comictagger \
                     --no-gui \
                     -r \
@@ -47,7 +47,7 @@ spec:
                     --dir /books/library/comics \
                     --template "{series} ({year})/{series} #{issue} ({year})" \
                     --config /config \
-                    /books/incoming/comics
+                    /books/incoming/comics/*.cbz
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
