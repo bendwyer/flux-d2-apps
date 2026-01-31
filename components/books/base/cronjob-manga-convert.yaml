@@ -23,7 +23,7 @@ spec:
               type: RuntimeDefault
           containers:
             - name: manga-convert
-              image: ghcr.io/bendwyer/containers/epub2cbz@sha256:3d21087f9936454c07d80e7ab5b3b8ff777a95f14381053de39863723f0580ca # 1.0.1
+              image: ghcr.io/bendwyer/containers/epub2cbz@sha256:323d4a7c17a6814ba01d4ec7698b05762bb6366f4f58fa49e4052f05ce85136f # 1.0.2
               command: ["python3", "/app/epub2cbz.py"]
               args:
                 - --input-dir
