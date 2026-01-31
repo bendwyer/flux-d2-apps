@@ -29,13 +29,12 @@ spec:
                 - |
                   comictagger \
                     --no-gui \
-                    -s \
+                    -r \
                     -o \
                     -f \
                     --source comicvine \
-                    --comicvine-key "$(cat /secret/api-key)" \
+                    --comicvine-key "$(cat /secret/credential)" \
                     --no-abort \
-                    -r \
                     --move \
                     --dir /books/library/comics \
                     --template "{series} ({year})/{series} #{issue} ({year})" \
