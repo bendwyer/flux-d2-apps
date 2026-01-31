@@ -34,6 +34,7 @@ spec:
                     -f \
                     --tags-write cr \
                     --source mangabaka \
+                    --mangabaka-age-filter pornographic \
                     --no-abort \
                     --config /config \
                     /books/incoming/manga/*.cbz &&
