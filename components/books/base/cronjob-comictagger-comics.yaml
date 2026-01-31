@@ -1,0 +1,76 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: comictagger-comics
+  namespace: books
+spec:
+  schedule: "30 */6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: comictagger
+              image: ghcr.io/bendwyer/comictagger@sha256:dfb3a48a21ce90c2f1708c7192e0d5e07502b56cd0b4333817394aab4c725b32 # 1.6.0b9
+              command: ["sh", "-c"]
+              args:
+                - |
+                  comictagger \
+                    --no-gui \
+                    -s \
+                    -o \
+                    -f \
+                    --source comicvine \
+                    --comicvine-key "$(cat /secret/api-key)" \
+                    --no-abort \
+                    -r \
+                    --move \
+                    --dir /books/library/comics \
+                    --template "{series} ({year})/{series} #{issue} ({year})" \
+                    --config /config \
+                    /books/incoming/comics
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 512Mi
+              volumeMounts:
+                - name: comicvine-secret
+                  mountPath: /secret
+                  readOnly: true
+                - name: config
+                  mountPath: /config
+                - name: tmp
+                  mountPath: /tmp
+                - name: library
+                  mountPath: /books
+          volumes:
+            - name: comicvine-secret
+              secret:
+                secretName: comicvine-credentials
+            - name: config
+              emptyDir: {}
+            - name: tmp
+              emptyDir: {}
+            - name: library
+              persistentVolumeClaim:
+                claimName: library-shared-pvc
