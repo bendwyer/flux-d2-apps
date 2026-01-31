@@ -23,7 +23,7 @@ spec:
               type: RuntimeDefault
           containers:
             - name: manga-convert
-              image: ghcr.io/bendwyer/containers/epub2cbz@sha256:82c65a7e815dc431d9644be966eb010c0d77fa7540cf001fb3ad2f14ff2a4353 # 1.0.0
+              image: ghcr.io/bendwyer/containers/epub2cbz@sha256:3d21087f9936454c07d80e7ab5b3b8ff777a95f14381053de39863723f0580ca # 1.0.1
               command: ["python3", "/app/epub2cbz.py"]
               args:
                 - --input-dir
@@ -33,7 +33,7 @@ spec:
                 - --min-size
                 - "50"
                 - --marker-dir
-                - /config/markers
+                - /books/incoming/manga/.markers
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
@@ -49,12 +49,7 @@ spec:
               volumeMounts:
                 - name: library
                   mountPath: /books
-                - name: config
-                  mountPath: /config
           volumes:
             - name: library
               persistentVolumeClaim:
                 claimName: library-shared-pvc
-            - name: config
-              persistentVolumeClaim:
-                claimName: manga-convert-config-pvc
