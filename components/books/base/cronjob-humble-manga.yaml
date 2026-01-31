@@ -24,7 +24,7 @@ spec:
               type: RuntimeDefault
           initContainers:
             - name: humble-download
-              image: ghcr.io/bendwyer/humble-cli@sha256:0a5b50588235710f77f7055bd40d1184edd3e7395a3dc5cfabcc8b28287c19a9 # 0.21.3
+              image: ghcr.io/bendwyer/containers/humble-cli@sha256:0a5b50588235710f77f7055bd40d1184edd3e7395a3dc5cfabcc8b28287c19a9 # 0.21.3
               command: ["sh", "-c"]
               args:
                 - |
