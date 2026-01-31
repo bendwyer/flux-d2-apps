@@ -23,7 +23,7 @@ spec:
               type: RuntimeDefault
           containers:
             - name: comictagger
-              image: ghcr.io/bendwyer/comictagger@sha256:dfb3a48a21ce90c2f1708c7192e0d5e07502b56cd0b4333817394aab4c725b32 # 1.6.0b9
+              image: ghcr.io/bendwyer/containers/comictagger@sha256:dfb3a48a21ce90c2f1708c7192e0d5e07502b56cd0b4333817394aab4c725b32 # 1.6.0b9
               command: ["sh", "-c"]
               args:
                 - |
