@@ -29,7 +29,7 @@ spec:
               args:
                 - |
                   export HOME=/tmp &&
-                  humble-cli auth "$(cat /secret/session-key)" &&
+                  humble-cli auth "$(cat /secret/credential)" &&
                   mkdir -p /books/sources/humble-bundle &&
                   cd /books/sources/humble-bundle &&
                   echo "$BUNDLE_KEY" > /tmp/bundles.txt &&
