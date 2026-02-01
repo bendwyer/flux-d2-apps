@@ -2,10 +2,11 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: gutenberg-metadata
+  name: convert-manga-humble
   namespace: books
 spec:
-  schedule: "30 */6 * * *"
+  schedule: "0 0 1 1 *"
+  suspend: true
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
@@ -22,18 +23,22 @@ spec:
             seccompProfile:
               type: RuntimeDefault
           containers:
-            - name: ebook-metadata
-              image: ghcr.io/bendwyer/containers/ebook-metadata:1
-              imagePullPolicy: Always
+            - name: kcc
+              image: ghcr.io/ciromattia/kcc:v9.4.3
+              command: ["sh", "-c"]
+              env:
+                - name: BUNDLE_NAME
+                  value: "CHANGE_ME"
               args:
-                - --input-dir
-                - /books/sources/gutenberg
-                - --output-dir
-                - /books/library/ebooks
-                - --marker-dir
-                - /books/markers/gutenberg
-                - --provider
-                - goodreads
+                - |
+                  find "/books/sources/humble-bundle/$BUNDLE_NAME" -name '*.pdf' | head -1 | grep -q . || { echo "No .pdf files to process"; exit 0; }
+                  mkdir -p /books/incoming/manga /books/markers/humble-manga &&
+                  find "/books/sources/humble-bundle/$BUNDLE_NAME" -name '*.pdf' | while read -r pdf; do
+                    marker="/books/markers/humble-manga/$(basename "$pdf").done"
+                    [ -f "$marker" ] && continue
+                    kcc-c2e -p KoA -f CBZ -o /books/incoming/manga "$pdf" &&
+                    touch "$marker"
+                  done
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
@@ -45,15 +50,15 @@ spec:
                   cpu: 100m
                   memory: 256Mi
                 limits:
-                  memory: 512Mi
+                  memory: 1Gi
               volumeMounts:
-                - name: library
-                  mountPath: /books
                 - name: tmp
                   mountPath: /tmp
+                - name: library
+                  mountPath: /books
           volumes:
+            - name: tmp
+              emptyDir: {}
             - name: library
               persistentVolumeClaim:
                 claimName: library-shared-pvc
-            - name: tmp
-              emptyDir: {}

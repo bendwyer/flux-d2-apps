@@ -2,7 +2,7 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: comictagger-comics
+  name: metadata-manga
   namespace: books
 spec:
   schedule: "30 */6 * * *"
@@ -27,28 +27,28 @@ spec:
               command: ["sh", "-c"]
               args:
                 - |
-                  ls /books/incoming/comics/*.cbz >/dev/null 2>&1 || { echo "No .cbz files to process"; exit 0; }
+                  ls /books/incoming/manga/*.cbz >/dev/null 2>&1 || { echo "No .cbz files to process"; exit 0; }
                   comictagger \
                     --no-gui \
                     -s \
                     -o \
                     -f \
                     --tags-write cr \
-                    --source comicvine \
-                    --comicvine-key "$(cat /secret/credential)" \
+                    --source mangabaka \
+                    --mangabaka-age-filter pornographic \
                     --no-abort \
                     --config /config \
-                    /books/incoming/comics/*.cbz &&
+                    /books/incoming/manga/*.cbz &&
                   comictagger \
                     --no-gui \
                     -r \
                     --tags-read cr \
                     --no-abort \
                     --move \
-                    --dir /books/library/comics \
-                    --template "{series} ({year})/{series} #{issue} ({year})" \
+                    --dir /books/library/manga \
+                    --template "{series}/{series} #{issue} ({year})" \
                     --config /config \
-                    /books/incoming/comics/*.cbz
+                    /books/incoming/manga/*.cbz
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
@@ -62,9 +62,6 @@ spec:
                 limits:
                   memory: 512Mi
               volumeMounts:
-                - name: comicvine-secret
-                  mountPath: /secret
-                  readOnly: true
                 - name: config
                   mountPath: /config
                 - name: tmp
@@ -72,9 +69,6 @@ spec:
                 - name: library
                   mountPath: /books
           volumes:
-            - name: comicvine-secret
-              secret:
-                secretName: comicvine-credentials
             - name: config
               emptyDir: {}
             - name: tmp

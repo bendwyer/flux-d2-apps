@@ -2,10 +2,11 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: comictagger-manga
+  name: sync-humble
   namespace: books
 spec:
-  schedule: "30 */6 * * *"
+  schedule: "0 0 1 1 *"
+  suspend: true
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
@@ -22,33 +23,20 @@ spec:
             seccompProfile:
               type: RuntimeDefault
           containers:
-            - name: comictagger
-              image: ghcr.io/bendwyer/containers/comictagger@sha256:dfb3a48a21ce90c2f1708c7192e0d5e07502b56cd0b4333817394aab4c725b32 # 1.6.0b9
+            - name: humble-cli
+              image: ghcr.io/bendwyer/containers/humble-cli@sha256:0a5b50588235710f77f7055bd40d1184edd3e7395a3dc5cfabcc8b28287c19a9 # 0.21.3
               command: ["sh", "-c"]
               args:
                 - |
-                  ls /books/incoming/manga/*.cbz >/dev/null 2>&1 || { echo "No .cbz files to process"; exit 0; }
-                  comictagger \
-                    --no-gui \
-                    -s \
-                    -o \
-                    -f \
-                    --tags-write cr \
-                    --source mangabaka \
-                    --mangabaka-age-filter pornographic \
-                    --no-abort \
-                    --config /config \
-                    /books/incoming/manga/*.cbz &&
-                  comictagger \
-                    --no-gui \
-                    -r \
-                    --tags-read cr \
-                    --no-abort \
-                    --move \
-                    --dir /books/library/manga \
-                    --template "{series}/{series} #{issue} ({year})" \
-                    --config /config \
-                    /books/incoming/manga/*.cbz
+                  export HOME=/tmp &&
+                  humble-cli auth "$(cat /secret/session-key)" &&
+                  mkdir -p /books/sources/humble-bundle &&
+                  cd /books/sources/humble-bundle &&
+                  echo "$BUNDLE_KEY" > /tmp/bundles.txt &&
+                  humble-cli bulk-download /tmp/bundles.txt --format pdf
+              env:
+                - name: BUNDLE_KEY
+                  value: "CHANGE_ME"
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
@@ -62,15 +50,17 @@ spec:
                 limits:
                   memory: 512Mi
               volumeMounts:
-                - name: config
-                  mountPath: /config
+                - name: config-secret
+                  mountPath: /secret
+                  readOnly: true
                 - name: tmp
                   mountPath: /tmp
                 - name: library
                   mountPath: /books
           volumes:
-            - name: config
-              emptyDir: {}
+            - name: config-secret
+              secret:
+                secretName: humble-credentials
             - name: tmp
               emptyDir: {}
             - name: library

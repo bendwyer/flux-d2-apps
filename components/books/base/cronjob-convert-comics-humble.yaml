@@ -2,10 +2,11 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: manga-convert
+  name: convert-comics-humble
   namespace: books
 spec:
-  schedule: "15 */6 * * *"
+  schedule: "0 0 1 1 *"
+  suspend: true
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
@@ -22,18 +23,22 @@ spec:
             seccompProfile:
               type: RuntimeDefault
           containers:
-            - name: manga-convert
-              image: ghcr.io/bendwyer/containers/epub2cbz@sha256:323d4a7c17a6814ba01d4ec7698b05762bb6366f4f58fa49e4052f05ce85136f # 1.0.2
-              command: ["python3", "/app/epub2cbz.py"]
+            - name: kcc
+              image: ghcr.io/ciromattia/kcc:v9.4.3
+              command: ["sh", "-c"]
+              env:
+                - name: BUNDLE_NAME
+                  value: "CHANGE_ME"
               args:
-                - --input-dir
-                - /books/sources/kobo
-                - --output-dir
-                - /books/incoming/manga
-                - --min-size
-                - "50"
-                - --marker-dir
-                - /books/markers/manga
+                - |
+                  find "/books/sources/humble-bundle/$BUNDLE_NAME" -name '*.pdf' | head -1 | grep -q . || { echo "No .pdf files to process"; exit 0; }
+                  mkdir -p /books/incoming/comics /books/markers/humble-comics &&
+                  find "/books/sources/humble-bundle/$BUNDLE_NAME" -name '*.pdf' | while read -r pdf; do
+                    marker="/books/markers/humble-comics/$(basename "$pdf").done"
+                    [ -f "$marker" ] && continue
+                    kcc-c2e -p KoA -f CBZ -o /books/incoming/comics "$pdf" &&
+                    touch "$marker"
+                  done
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
@@ -45,11 +50,15 @@ spec:
                   cpu: 100m
                   memory: 256Mi
                 limits:
-                  memory: 512Mi
+                  memory: 1Gi
               volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
                 - name: library
                   mountPath: /books
           volumes:
+            - name: tmp
+              emptyDir: {}
             - name: library
               persistentVolumeClaim:
                 claimName: library-shared-pvc

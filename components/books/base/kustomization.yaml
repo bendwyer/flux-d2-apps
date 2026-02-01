@@ -3,14 +3,15 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - cronjob-comictagger-comics.yaml
-  - cronjob-comictagger-manga.yaml
-  - cronjob-gutenberg-metadata.yaml
-  - cronjob-kobo-metadata.yaml
-  - cronjob-humble-comics.yaml
-  - cronjob-humble-manga.yaml
-  - cronjob-kobo.yaml
-  - cronjob-manga-convert.yaml
+  - cronjob-convert-comics-humble.yaml
+  - cronjob-convert-manga-humble.yaml
+  - cronjob-convert-manga-kobo.yaml
+  - cronjob-metadata-comics.yaml
+  - cronjob-metadata-ebook-gutenberg.yaml
+  - cronjob-metadata-ebook-kobo.yaml
+  - cronjob-metadata-manga.yaml
+  - cronjob-sync-humble.yaml
+  - cronjob-sync-kobo.yaml
   - helmrelease-filebrowser.yaml
   - helmrelease-kavita.yaml
   - ingress-filebrowser.yaml

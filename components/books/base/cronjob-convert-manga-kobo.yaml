@@ -2,10 +2,10 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: kobo-metadata
+  name: convert-manga-kobo
   namespace: books
 spec:
-  schedule: "20 */6 * * *"
+  schedule: "15 */6 * * *"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
@@ -22,24 +22,18 @@ spec:
             seccompProfile:
               type: RuntimeDefault
           containers:
-            - name: ebook-metadata
-              image: ghcr.io/bendwyer/containers/ebook-metadata:1
-              imagePullPolicy: Always
+            - name: epub2cbz
+              image: ghcr.io/bendwyer/containers/epub2cbz@sha256:323d4a7c17a6814ba01d4ec7698b05762bb6366f4f58fa49e4052f05ce85136f # 1.0.2
+              command: ["python3", "/app/epub2cbz.py"]
               args:
                 - --input-dir
                 - /books/sources/kobo
                 - --output-dir
-                - /books/library/ebooks
-                - --marker-dir
-                - /books/markers/kobo
-                - --provider
-                - kobo
-                - --country
-                - de
-                - --language
-                - en
-                - --skip-large
+                - /books/incoming/manga
+                - --min-size
                 - "50"
+                - --marker-dir
+                - /books/markers/manga
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
@@ -55,11 +49,7 @@ spec:
               volumeMounts:
                 - name: library
                   mountPath: /books
-                - name: tmp
-                  mountPath: /tmp
           volumes:
             - name: library
               persistentVolumeClaim:
                 claimName: library-shared-pvc
-            - name: tmp
-              emptyDir: {}

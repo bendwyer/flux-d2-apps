@@ -12,5 +12,5 @@ TYPE="$1"
 
 [[ "$TYPE" == "comics" || "$TYPE" == "manga" ]] || usage
 
-kubectl -n books create job "comictagger-${TYPE}-$(date +%s)" \
-  --from="cronjob/comictagger-${TYPE}"
+kubectl -n books create job "metadata-${TYPE}-$(date +%s)" \
+  --from="cronjob/metadata-${TYPE}"

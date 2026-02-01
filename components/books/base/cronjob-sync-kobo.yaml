@@ -2,7 +2,7 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: kobo-sync
+  name: sync-kobo
   namespace: books
 spec:
   schedule: "0 */6 * * *"
@@ -22,7 +22,7 @@ spec:
             seccompProfile:
               type: RuntimeDefault
           containers:
-            - name: kobo-sync
+            - name: kobodl
               image: ghcr.io/subdavis/kobodl@sha256:5439b54edcd16211dd6b1567f1b3a976f21770851be29cf0269de8d52b93717b # sha-79d4d8d
               command: ["sh", "-c"]
               args:

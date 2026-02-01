@@ -12,5 +12,5 @@ SOURCE="$1"
 
 [[ "$SOURCE" == "kobo" || "$SOURCE" == "gutenberg" ]] || usage
 
-kubectl -n books create job "${SOURCE}-metadata-$(date +%s)" \
-  --from="cronjob/${SOURCE}-metadata"
+kubectl -n books create job "metadata-ebook-${SOURCE}-$(date +%s)" \
+  --from="cronjob/metadata-ebook-${SOURCE}"
