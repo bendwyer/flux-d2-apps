@@ -27,14 +27,14 @@ spec:
               command: ["sh", "-c"]
               args:
                 - |
-                  mkdir -p /books/incoming/ebooks/.markers
+                  mkdir -p /books/markers/ebooks
                   for f in /books/sources/kobo/*.epub; do
                     [ ! -f "$f" ] && continue
                     size=$(stat -c%s "$f" 2>/dev/null || stat -f%z "$f")
                     # Skip files >= 50MB (manga handled by epub2cbz)
                     [ "$size" -ge 52428800 ] && continue
                     name=$(basename "$f")
-                    marker="/books/incoming/ebooks/.markers/${name}.staged"
+                    marker="/books/markers/ebooks/${name}.staged"
                     [ -f "$marker" ] && continue
                     cp "$f" "/books/incoming/ebooks/"
                     touch "$marker"
