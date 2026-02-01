@@ -23,7 +23,8 @@ spec:
               type: RuntimeDefault
           containers:
             - name: ebook-metadata
-              image: ghcr.io/bendwyer/containers/ebook-metadata@sha256:430d92605c242c9807471577039145506d8504f802073dbc2cc0a0e3e753f8b0 # 1.0.0
+              image: ghcr.io/bendwyer/containers/ebook-metadata:1
+              imagePullPolicy: Always
               args:
                 - --input-dir
                 - /books/sources/gutenberg
