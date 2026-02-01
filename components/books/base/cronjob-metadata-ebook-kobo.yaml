@@ -2,10 +2,10 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: gutenberg-metadata
+  name: metadata-ebook-kobo
   namespace: books
 spec:
-  schedule: "30 */6 * * *"
+  schedule: "20 */6 * * *"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
@@ -27,13 +27,19 @@ spec:
               imagePullPolicy: Always
               args:
                 - --input-dir
-                - /books/sources/gutenberg
+                - /books/sources/kobo
                 - --output-dir
                 - /books/library/ebooks
                 - --marker-dir
-                - /books/markers/gutenberg
+                - /books/markers/kobo
                 - --provider
-                - goodreads
+                - kobo
+                - --country
+                - de
+                - --language
+                - en
+                - --skip-large
+                - "50"
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true

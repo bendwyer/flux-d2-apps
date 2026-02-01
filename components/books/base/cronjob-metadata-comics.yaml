@@ -2,7 +2,7 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: comictagger-comics
+  name: metadata-comics
   namespace: books
 spec:
   schedule: "30 */6 * * *"
