@@ -10,11 +10,9 @@ resources:
   - cronjob-humble-manga.yaml
   - cronjob-kobo.yaml
   - cronjob-manga-convert.yaml
-  - helmrelease-cwa.yaml
   - helmrelease-filebrowser.yaml
-  - helmrelease-kavita.yaml  
-  - ingress-cwa.yaml
+  - helmrelease-kavita.yaml
   - ingress-filebrowser.yaml
-  - ingress-kavita.yaml  
+  - ingress-kavita.yaml
   - namespace.yaml
   - pvcs.yaml
