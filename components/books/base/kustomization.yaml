@@ -10,8 +10,7 @@ resources:
   - cronjob-metadata-ebook-gutenberg.yaml
   - cronjob-metadata-ebook-kobo.yaml
   - cronjob-metadata-manga.yaml
-  - cronjob-sync-humble-comics.yaml
-  - cronjob-sync-humble-manga.yaml
+  - cronjob-sync-humble.yaml
   - cronjob-sync-kobo.yaml
   - helmrelease-filebrowser.yaml
   - helmrelease-kavita.yaml
