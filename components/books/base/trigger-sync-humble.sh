@@ -13,8 +13,8 @@ TYPE="$2"
 
 [[ "$TYPE" == "comics" || "$TYPE" == "manga" ]] || usage
 
-kubectl -n books create job "humble-${TYPE}-$(date +%s)" \
-  --from="cronjob/humble-sync-${TYPE}" \
+kubectl -n books create job "sync-humble-${TYPE}-$(date +%s)" \
+  --from="cronjob/sync-humble-${TYPE}" \
   --dry-run=client -o yaml | \
   sed "s/CHANGE_ME/${BUNDLE_KEY}/" | \
   kubectl apply -f -

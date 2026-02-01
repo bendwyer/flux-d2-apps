@@ -12,6 +12,5 @@ TYPE="$1"
 
 [[ "$TYPE" == "comics" || "$TYPE" == "manga" ]] || usage
 
-kubectl exec -n books \
-  "$(kubectl -n books get pods -l app.kubernetes.io/name=kavita -o jsonpath='{.items[0].metadata.name}')" \
-  -- sh -c "rm -rf /books/incoming/${TYPE}/.markers/*"
+kubectl -n books create job "convert-${TYPE}-humble-$(date +%s)" \
+  --from="cronjob/convert-${TYPE}-humble"
