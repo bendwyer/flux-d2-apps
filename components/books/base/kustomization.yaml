@@ -5,7 +5,6 @@ kind: Kustomization
 resources:
   - cronjob-comictagger-comics.yaml
   - cronjob-comictagger-manga.yaml
-  - cronjob-stage-ebook.yaml  
   - cronjob-humble-comics.yaml
   - cronjob-humble-manga.yaml
   - cronjob-kobo.yaml
