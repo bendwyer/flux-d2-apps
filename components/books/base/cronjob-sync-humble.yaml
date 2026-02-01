@@ -33,7 +33,7 @@ spec:
                   mkdir -p /books/sources/humble-bundle &&
                   cd /books/sources/humble-bundle &&
                   echo "$BUNDLE_KEY" > /tmp/bundles.txt &&
-                  humble-cli bulk-download /tmp/bundles.txt --format pdf
+                  humble-cli bulk-download /tmp/bundles.txt --format pdf --format "pdf (hq)"
               env:
                 - name: BUNDLE_KEY
                   value: "CHANGE_ME"
