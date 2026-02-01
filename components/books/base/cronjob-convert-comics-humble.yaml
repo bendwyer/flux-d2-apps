@@ -26,11 +26,14 @@ spec:
             - name: kcc
               image: ghcr.io/ciromattia/kcc:v9.4.3
               command: ["sh", "-c"]
+              env:
+                - name: BUNDLE_NAME
+                  value: "CHANGE_ME"
               args:
                 - |
-                  find /books/sources/humble-comics -name '*.pdf' | head -1 | grep -q . || { echo "No .pdf files to process"; exit 0; }
+                  find "/books/sources/humble-bundle/$BUNDLE_NAME" -name '*.pdf' | head -1 | grep -q . || { echo "No .pdf files to process"; exit 0; }
                   mkdir -p /books/incoming/comics /books/markers/humble-comics &&
-                  find /books/sources/humble-comics -name '*.pdf' | while read -r pdf; do
+                  find "/books/sources/humble-bundle/$BUNDLE_NAME" -name '*.pdf' | while read -r pdf; do
                     marker="/books/markers/humble-comics/$(basename "$pdf").done"
                     [ -f "$marker" ] && continue
                     kcc-c2e -p KoA -f CBZ -o /books/incoming/comics "$pdf" &&
