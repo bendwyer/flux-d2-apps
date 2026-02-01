@@ -16,6 +16,8 @@ spec:
       filebrowser:
         containers:
           app:
+            args:
+              - --root=/books
             image:
               repository: filebrowser/filebrowser
               tag: v2.56.0
