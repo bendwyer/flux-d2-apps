@@ -1,0 +1,58 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: gutenberg-metadata
+  namespace: books
+spec:
+  schedule: "30 */6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: ebook-metadata
+              image: ghcr.io/bendwyer/containers/ebook-metadata@sha256:430d92605c242c9807471577039145506d8504f802073dbc2cc0a0e3e753f8b0 # 1.0.0
+              args:
+                - --input-dir
+                - /books/sources/gutenberg
+                - --output-dir
+                - /books/library/ebooks
+                - --marker-dir
+                - /books/markers/gutenberg
+                - --provider
+                - goodreads
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 512Mi
+              volumeMounts:
+                - name: library
+                  mountPath: /books
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: library
+              persistentVolumeClaim:
+                claimName: library-shared-pvc
+            - name: tmp
+              emptyDir: {}
