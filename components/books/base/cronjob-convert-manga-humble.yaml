@@ -1,0 +1,61 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: convert-manga-humble
+  namespace: books
+spec:
+  schedule: "0 0 1 1 *"
+  suspend: true
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: kcc
+              image: ghcr.io/ciromattia/kcc:v9.4.3
+              command: ["sh", "-c"]
+              args:
+                - |
+                  find /books/sources/humble-manga -name '*.pdf' | head -1 | grep -q . || { echo "No .pdf files to process"; exit 0; }
+                  mkdir -p /books/incoming/manga /books/markers/humble-manga &&
+                  find /books/sources/humble-manga -name '*.pdf' | while read -r pdf; do
+                    marker="/books/markers/humble-manga/$(basename "$pdf").done"
+                    [ -f "$marker" ] && continue
+                    kcc-c2e -p KoA -f CBZ -o /books/incoming/manga "$pdf" &&
+                    touch "$marker"
+                  done
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 1Gi
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+                - name: library
+                  mountPath: /books
+          volumes:
+            - name: tmp
+              emptyDir: {}
+            - name: library
+              persistentVolumeClaim:
+                claimName: library-shared-pvc

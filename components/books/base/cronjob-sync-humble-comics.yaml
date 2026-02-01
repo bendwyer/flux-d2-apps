@@ -2,7 +2,7 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: humble-sync-comics
+  name: sync-humble-comics
   namespace: books
 spec:
   schedule: "0 0 1 1 *"
@@ -22,18 +22,18 @@ spec:
             fsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
-          initContainers:
-            - name: humble-download
+          containers:
+            - name: humble-cli
               image: ghcr.io/bendwyer/containers/humble-cli@sha256:0a5b50588235710f77f7055bd40d1184edd3e7395a3dc5cfabcc8b28287c19a9 # 0.21.3
               command: ["sh", "-c"]
               args:
                 - |
                   export HOME=/tmp &&
                   humble-cli auth "$(cat /secret/session-key)" &&
-                  mkdir -p /staging/comics &&
-                  cd /staging/comics &&
+                  mkdir -p /books/sources/humble-comics &&
+                  cd /books/sources/humble-comics &&
                   echo "$BUNDLE_KEY" > /tmp/bundles.txt &&
-                  humble-cli bulk-download /tmp/bundles.txt --format pdf --cur-dir
+                  humble-cli bulk-download /tmp/bundles.txt --format pdf
               env:
                 - name: BUNDLE_KEY
                   value: "CHANGE_ME"
@@ -55,37 +55,6 @@ spec:
                   readOnly: true
                 - name: tmp
                   mountPath: /tmp
-                - name: staging
-                  mountPath: /staging
-          containers:
-            - name: kcc-convert
-              image: ghcr.io/ciromattia/kcc:v9.4.3
-              command: ["sh", "-c"]
-              args:
-                - |
-                  mkdir -p /books/incoming/comics &&
-                  for pdf in /staging/comics/*.pdf; do
-                    [ -f "$pdf" ] || continue
-                    kcc-c2e -p KoA -f CBZ -o /books/incoming/comics "$pdf"
-                  done
-              securityContext:
-                allowPrivilegeEscalation: false
-                readOnlyRootFilesystem: true
-                capabilities:
-                  drop:
-                    - ALL
-              resources:
-                requests:
-                  cpu: 100m
-                  memory: 256Mi
-                limits:
-                  memory: 1Gi
-              volumeMounts:
-                - name: staging
-                  mountPath: /staging
-                  readOnly: true
-                - name: tmp
-                  mountPath: /tmp
                 - name: library
                   mountPath: /books
           volumes:
@@ -93,8 +62,6 @@ spec:
               secret:
                 secretName: humble-credentials
             - name: tmp
-              emptyDir: {}
-            - name: staging
               emptyDir: {}
             - name: library
               persistentVolumeClaim:
