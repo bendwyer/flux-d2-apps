@@ -33,7 +33,7 @@ spec:
                 - --min-size
                 - "50"
                 - --marker-dir
-                - /books/incoming/manga/.markers
+                - /books/markers/manga
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
