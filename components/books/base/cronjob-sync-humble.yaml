@@ -2,7 +2,7 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: sync-humble-comics
+  name: sync-humble
   namespace: books
 spec:
   schedule: "0 0 1 1 *"
@@ -30,8 +30,8 @@ spec:
                 - |
                   export HOME=/tmp &&
                   humble-cli auth "$(cat /secret/session-key)" &&
-                  mkdir -p /books/sources/humble-comics &&
-                  cd /books/sources/humble-comics &&
+                  mkdir -p /books/sources/humble-bundle &&
+                  cd /books/sources/humble-bundle &&
                   echo "$BUNDLE_KEY" > /tmp/bundles.txt &&
                   humble-cli bulk-download /tmp/bundles.txt --format pdf
               env:
