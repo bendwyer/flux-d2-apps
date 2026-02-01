@@ -65,9 +65,3 @@ spec:
         existingClaim: library-shared-pvc
         globalMounts:
           - path: /books
-      ingest:
-        enabled: true
-        existingClaim: library-shared-pvc
-        globalMounts:
-          - path: /cwa-book-ingest
-            subPath: incoming/ebooks
