@@ -36,7 +36,19 @@ spec:
                   find "/books/sources/humble-bundle/$BUNDLE_NAME" -name '*.pdf' | while read -r pdf; do
                     marker="/books/markers/humble-manga/$(basename "$pdf").done"
                     [ -f "$marker" ] && continue
+                    # Get parent directory name and normalize for comictagger
+                    # Normalize: Volume X -> Vol. X, Vol .X -> Vol. X, strip subtitles after double-space
+                    parent_name=$(basename "$(dirname "$pdf")")
+                    output_name=$(printf '%s' "$parent_name" | sed -E '
+                      s/Volume ([0-9]+)/Vol. \1/g
+                      s/Vol \.([0-9]+)/Vol. \1/g
+                      s/Vol\.([0-9]+)/Vol. \1/g
+                      s/  +.*$//
+                    ')
+                    echo "Converting: $pdf -> ${output_name}.cbz"
+                    pdf_basename=$(basename "$pdf" .pdf)
                     c2e -n -f CBZ -o /books/incoming/manga "$pdf" &&
+                    mv "/books/incoming/manga/${pdf_basename}.cbz" "/books/incoming/manga/${output_name}.cbz" &&
                     touch "$marker"
                   done
               securityContext:
