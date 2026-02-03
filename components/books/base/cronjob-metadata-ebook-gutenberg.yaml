@@ -27,11 +27,11 @@ spec:
               imagePullPolicy: Always
               args:
                 - --input-dir
-                - /books/sources/gutenberg
+                - /books/sources/project-gutenberg
                 - --output-dir
                 - /books/library/ebooks
                 - --marker-dir
-                - /books/markers/gutenberg
+                - /books/markers/project-gutenberg
                 - --provider
                 - goodreads
               securityContext:
