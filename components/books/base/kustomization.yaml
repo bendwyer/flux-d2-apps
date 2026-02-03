@@ -1,0 +1,20 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - cronjob-convert-comics-humble.yaml
+  - cronjob-convert-manga-humble.yaml
+  - cronjob-convert-manga-kobo.yaml
+  - cronjob-metadata-comics.yaml
+  - cronjob-metadata-ebook-gutenberg.yaml
+  - cronjob-metadata-ebook-kobo.yaml
+  - cronjob-metadata-manga.yaml
+  - cronjob-sync-humble.yaml
+  - cronjob-sync-kobo.yaml
+  - helmrelease-filebrowser.yaml
+  - helmrelease-kavita.yaml
+  - ingress-filebrowser.yaml
+  - ingress-kavita.yaml
+  - namespace.yaml
+  - pvcs.yaml

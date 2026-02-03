@@ -35,7 +35,7 @@ spec:
             - --k8s-proxy-bind-addr=0.0.0.0:8100
             - --advertised-api-url=https://${OMNI_SUBDOMAIN}.${OMNI_DOMAIN}/
             - --advertised-kubernetes-proxy-url=https://${OMNI_SUBDOMAIN}.${OMNI_DOMAIN}:8100/
-            - --siderolink-api-advertised-url=https://${OMNI_SUBDOMAIN}.${OMNI_DOMAIN}:8090/
+            - --siderolink-api-advertised-url=https://api-${OMNI_SUBDOMAIN}.${OMNI_DOMAIN}:8090/
             - --siderolink-wireguard-advertised-addr=${OMNI_IP}:50180
             - --auth-oidc-enabled
             - --auth-oidc-provider-url=${OIDC_PROVIDER_URL}
@@ -54,22 +54,18 @@ spec:
             - name: https
               containerPort: 443
               hostPort: 443
-              hostIP: ${OMNI_IP}
               protocol: TCP
             - name: siderolink
               containerPort: 8090
               hostPort: 8090
-              hostIP: ${OMNI_IP}
               protocol: TCP
             - name: k8s-proxy
               containerPort: 8100
               hostPort: 8100
-              hostIP: ${OMNI_IP}
               protocol: TCP
             - name: wireguard
               containerPort: 50180
               hostPort: 50180
-              hostIP: ${OMNI_IP}
               protocol: UDP
           securityContext:
             capabilities:

@@ -1,0 +1,66 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kavita
+  namespace: books
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: bjw-s
+  values:
+    controllers:
+      kavita:
+        containers:
+          app:
+            image:
+              repository: lscr.io/linuxserver/kavita
+              digest: sha256:ab8d4b81d59ae5c4410bcc1102a7378c72d6cb17a26f350f5fa678b6e376dd3a # 0.8.9
+              pullPolicy: IfNotPresent
+            env:
+              TZ: Europe/Berlin
+              PUID: "1000"
+              PGID: "1000"
+            resources:
+              requests:
+                cpu: 100m
+                memory: 1.5Gi
+              limits:
+                memory: 1.5Gi
+            probes:
+              liveness:
+                enabled: true
+                type: HTTP
+                path: /api/health
+                port: 5000
+                spec:
+                  initialDelaySeconds: 30
+                  periodSeconds: 10
+              readiness:
+                enabled: true
+                type: HTTP
+                path: /api/health
+                port: 5000
+                spec:
+                  initialDelaySeconds: 5
+                  periodSeconds: 5
+    service:
+      kavita:
+        controller: kavita
+        ports:
+          http:
+            port: 5000
+    persistence:
+      config:
+        enabled: true
+        existingClaim: kavita-config-pvc
+        globalMounts:
+          - path: /config
+      library:
+        enabled: true
+        existingClaim: library-shared-pvc
+        globalMounts:
+          - path: /books

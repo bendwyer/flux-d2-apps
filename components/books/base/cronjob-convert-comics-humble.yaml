@@ -1,0 +1,64 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: convert-comics-humble
+  namespace: books
+spec:
+  schedule: "0 0 1 1 *"
+  suspend: true
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: kcc
+              image: ghcr.io/ciromattia/kcc:v9.4.3
+              command: ["sh", "-c"]
+              env:
+                - name: BUNDLE_NAME
+                  value: "CHANGE_ME"
+              args:
+                - |
+                  find "/books/sources/humble-bundle/$BUNDLE_NAME" -name '*.pdf' | head -1 | grep -q . || { echo "No .pdf files to process"; exit 0; }
+                  mkdir -p /books/incoming/comics /books/markers/humble-comics &&
+                  find "/books/sources/humble-bundle/$BUNDLE_NAME" -name '*.pdf' | while read -r pdf; do
+                    marker="/books/markers/humble-comics/$(basename "$pdf").done"
+                    [ -f "$marker" ] && continue
+                    c2e -n -f CBZ -o /books/incoming/comics "$pdf" &&
+                    touch "$marker"
+                  done
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 4Gi
+                limits:
+                  memory: 4Gi
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+                - name: library
+                  mountPath: /books
+          volumes:
+            - name: tmp
+              emptyDir: {}
+            - name: library
+              persistentVolumeClaim:
+                claimName: library-shared-pvc
