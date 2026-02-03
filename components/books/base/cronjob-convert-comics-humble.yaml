@@ -36,7 +36,7 @@ spec:
                   find "/books/sources/humble-bundle/$BUNDLE_NAME" -name '*.pdf' | while read -r pdf; do
                     marker="/books/markers/humble-comics/$(basename "$pdf").done"
                     [ -f "$marker" ] && continue
-                    kcc-c2e -p KoA -f CBZ -o /books/incoming/comics "$pdf" &&
+                    c2e -p KoA -f CBZ -o /books/incoming/comics "$pdf" &&
                     touch "$marker"
                   done
               securityContext:
