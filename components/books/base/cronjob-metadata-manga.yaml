@@ -28,27 +28,31 @@ spec:
               args:
                 - |
                   ls /books/incoming/manga/*.cbz >/dev/null 2>&1 || { echo "No .cbz files to process"; exit 0; }
-                  comictagger \
-                    --no-gui \
-                    -s \
-                    -o \
-                    -f \
-                    --tags-write cr \
-                    --source mangabaka \
-                    --mangabaka-age-filter pornographic \
-                    --no-abort \
-                    --config /config \
-                    /books/incoming/manga/*.cbz &&
-                  comictagger \
-                    --no-gui \
-                    -r \
-                    --tags-read cr \
-                    --no-abort \
-                    --move \
-                    --dir /books/library/manga \
-                    --template "{series}/{series} #{issue} ({year})" \
-                    --config /config \
-                    /books/incoming/manga/*.cbz
+                  for f in /books/incoming/manga/*.cbz; do
+                    echo "Processing: $f"
+                    if comictagger \
+                      --no-gui \
+                      -s \
+                      -o \
+                      -f \
+                      --tags-write cr \
+                      --source mangabaka \
+                      --mangabaka-age-filter pornographic \
+                      --config /config \
+                      "$f"; then
+                      comictagger \
+                        --no-gui \
+                        -r \
+                        --tags-read cr \
+                        --move \
+                        --dir /books/library/manga \
+                        --template "{series}/{series} #{issue} ({year})" \
+                        --config /config \
+                        "$f" || echo "Warning: Tagged but failed to rename: $f"
+                    else
+                      echo "Skipped (no match): $f"
+                    fi
+                  done
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
