@@ -28,27 +28,31 @@ spec:
               args:
                 - |
                   ls /books/incoming/comics/*.cbz >/dev/null 2>&1 || { echo "No .cbz files to process"; exit 0; }
-                  comictagger \
-                    --no-gui \
-                    -s \
-                    -o \
-                    -f \
-                    --tags-write cr \
-                    --source comicvine \
-                    --comicvine-key "$(cat /secret/credential)" \
-                    --no-abort \
-                    --config /config \
-                    /books/incoming/comics/*.cbz &&
-                  comictagger \
-                    --no-gui \
-                    -r \
-                    --tags-read cr \
-                    --no-abort \
-                    --move \
-                    --dir /books/library/comics \
-                    --template "{series} ({year})/{series} #{issue} ({year})" \
-                    --config /config \
-                    /books/incoming/comics/*.cbz
+                  for f in /books/incoming/comics/*.cbz; do
+                    echo "Processing: $f"
+                    if comictagger \
+                      --no-gui \
+                      -s \
+                      -o \
+                      -f \
+                      --tags-write cr \
+                      --source comicvine \
+                      --comicvine-key "$(cat /secret/credential)" \
+                      --config /config \
+                      "$f"; then
+                      comictagger \
+                        --no-gui \
+                        -r \
+                        --tags-read cr \
+                        --move \
+                        --dir /books/library/comics \
+                        --template "{series} ({year})/{series} #{issue} ({year})" \
+                        --config /config \
+                        "$f" || echo "Warning: Tagged but failed to rename: $f"
+                    else
+                      echo "Skipped (no match): $f"
+                    fi
+                  done
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
