@@ -39,11 +39,22 @@ spec:
                     # Get parent directory name and normalize for comictagger
                     # Format: "Series Name X.cbz" (matches epub2cbz output format)
                     parent_name=$(basename "$(dirname "$pdf")")
-                    # Strip subtitle after double-space, convert Vol/Volume to just number
-                    output_name=$(printf '%s' "$parent_name" | sed -E '
-                      s/  +.*$//
-                      s/ (Volume|Vol) ?\.? ?([0-9]+)$/ \2/
-                    ')
+                    # Normalize naming: handle double-space separator
+                    # If "Vol. N" before double-space, strip subtitle; otherwise keep sub-series name
+                    if echo "$parent_name" | grep -qE ' (Vol|Volume) ?\.? ?[0-9]+  '; then
+                      # Volume with subtitle: "The Boys Vol. 1  The Name of the Game" → "The Boys 1"
+                      output_name=$(printf '%s' "$parent_name" | sed -E '
+                        s/  +.*$//
+                        s/ (Volume|Vol) ?\.? ?([0-9]+)$/ \2/
+                      ')
+                    else
+                      # Sub-series or simple: normalize double-space, extract #N or Vol N
+                      output_name=$(printf '%s' "$parent_name" | sed -E '
+                        s/  +/ /g
+                        s/ #0*([0-9]+).*$/ \1/
+                        s/ (Volume|Vol) ?\.? ?([0-9]+)$/ \2/
+                      ')
+                    fi
                     # Append " 1" for one-shots without a volume number
                     if ! echo "$output_name" | grep -qE ' [0-9]+$'; then
                       output_name="${output_name} 1"
