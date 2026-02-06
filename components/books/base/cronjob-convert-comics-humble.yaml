@@ -36,6 +36,13 @@ spec:
                   find "/books/sources/humble-bundle/$BUNDLE_NAME" -name '*.pdf' | while read -r pdf; do
                     marker="/books/markers/humble-comics/$(basename "$pdf").done"
                     [ -f "$marker" ] && continue
+                    # Skip non-HQ version when an HQ variant exists in the same directory
+                    if ls "$(dirname "$pdf")"/*HQ*.pdf >/dev/null 2>&1 && \
+                       ! echo "$(basename "$pdf")" | grep -qi 'HQ'; then
+                      echo "Skipping non-HQ: $pdf (HQ version available)"
+                      touch "$marker"
+                      continue
+                    fi
                     # Get parent directory name and normalize for comictagger
                     # Format: "Series Name X.cbz" (matches epub2cbz output format)
                     parent_name=$(basename "$(dirname "$pdf")")
