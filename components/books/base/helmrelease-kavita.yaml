@@ -59,6 +59,11 @@ spec:
         existingClaim: kavita-config-pvc
         globalMounts:
           - path: /config
+      cache:
+        enabled: true
+        existingClaim: kavita-cache-pvc
+        globalMounts:
+          - path: /config/cache
       library:
         enabled: true
         existingClaim: library-shared-pvc
