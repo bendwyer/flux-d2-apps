@@ -30,6 +30,7 @@ jobs:
           - books
           - flux-webui
           - goldilocks-webui
+          - homepage
           - longhorn-webui
           - omni
     steps:
