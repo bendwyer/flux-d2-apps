@@ -54,7 +54,22 @@ spec:
         type: configMap
         name: homepage
         globalMounts:
-          - path: /app/config
+          - path: /app/config/bookmarks.yaml
+            subPath: bookmarks.yaml
+          - path: /app/config/docker.yaml
+            subPath: docker.yaml
+          - path: /app/config/kubernetes.yaml
+            subPath: kubernetes.yaml
+          - path: /app/config/services.yaml
+            subPath: services.yaml
+          - path: /app/config/settings.yaml
+            subPath: settings.yaml
+          - path: /app/config/widgets.yaml
+            subPath: widgets.yaml
+          - path: /app/config/custom.js
+            subPath: custom.js
+          - path: /app/config/custom.css
+            subPath: custom.css
       logs:
         type: emptyDir
         globalMounts:
