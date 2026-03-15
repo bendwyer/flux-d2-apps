@@ -12,6 +12,8 @@ metadata:
     gethomepage.dev/name: "Kavita"
     gethomepage.dev/group: "Apps"
     gethomepage.dev/icon: "kavita.png"
+    gethomepage.dev/href: "https://kavita.tail0c49c.ts.net"
+
 spec:
   ingressClassName: tailscale
   tls:
