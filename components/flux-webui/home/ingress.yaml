@@ -1,0 +1,25 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: flux
+  namespace: flux-system
+  annotations:
+    tailscale.com/proxy-group: private-ingress
+    tailscale.com/tags: tag:k8s-private
+    tailscale.com/http-redirect: "true"
+spec:
+  ingressClassName: tailscale
+  tls:
+    - hosts:
+        - flux-home
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: flux-operator
+                port:
+                  name: http-web
