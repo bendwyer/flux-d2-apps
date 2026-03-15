@@ -43,6 +43,18 @@ spec:
     serviceAccount:
       homepage:
         enabled: true
+    configMaps:
+      config:
+        data:
+          kubernetes.yaml: |
+            mode: cluster
+          settings.yaml: ""
+          custom.css: ""
+          custom.js: ""
+          bookmarks.yaml: ""
+          services.yaml: ""
+          widgets.yaml: ""
+          docker.yaml: ""
     service:
       homepage:
         controller: homepage
