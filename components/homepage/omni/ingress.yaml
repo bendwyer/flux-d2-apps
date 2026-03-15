@@ -1,0 +1,25 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: homepage
+  namespace: homepage
+  annotations:
+    tailscale.com/proxy-group: private-ingress
+    tailscale.com/tags: tag:k8s-private
+    tailscale.com/http-redirect: "true"
+spec:
+  ingressClassName: tailscale
+  tls:
+    - hosts:
+        - homepage-omni
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: homepage
+                port:
+                  name: http
