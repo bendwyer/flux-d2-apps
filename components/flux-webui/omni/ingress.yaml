@@ -12,6 +12,8 @@ metadata:
     gethomepage.dev/name: "Flux"
     gethomepage.dev/group: "Infrastructure"
     gethomepage.dev/icon: "flux-cd.png"
+    gethomepage.dev/href: "https://flux-omni.tail0c49c.ts.net"
+
 spec:
   ingressClassName: tailscale
   tls:

@@ -12,6 +12,8 @@ metadata:
     gethomepage.dev/name: "Longhorn"
     gethomepage.dev/group: "Infrastructure"
     gethomepage.dev/icon: "longhorn.png"
+    gethomepage.dev/href: "https://longhorn-home.tail0c49c.ts.net"
+
 spec:
   ingressClassName: tailscale
   tls:

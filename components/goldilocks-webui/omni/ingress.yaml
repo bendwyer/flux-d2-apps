@@ -11,7 +11,9 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: "Goldilocks"
     gethomepage.dev/group: "Infrastructure"
-    gethomepage.dev/icon: "goldilocks.png"
+    gethomepage.dev/icon: "si-kubernetes"
+    gethomepage.dev/href: "https://goldilocks-omni.tail0c49c.ts.net"
+
 spec:
   ingressClassName: tailscale
   tls:

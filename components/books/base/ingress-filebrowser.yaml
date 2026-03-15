@@ -12,6 +12,8 @@ metadata:
     gethomepage.dev/name: "Filebrowser"
     gethomepage.dev/group: "Apps"
     gethomepage.dev/icon: "filebrowser.png"
+    gethomepage.dev/href: "https://filebrowser.tail0c49c.ts.net"
+
 spec:
   ingressClassName: tailscale
   tls:
