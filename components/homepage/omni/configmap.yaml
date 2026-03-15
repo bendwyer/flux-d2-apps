@@ -11,7 +11,12 @@ data:
   custom.css: ""
   custom.js: ""
   bookmarks.yaml: ""
-  services.yaml: ""
+  services.yaml: |
+    - Infrastructure:
+        - Omni:
+            href: "https://omni.bendwyer.cloud"
+            icon: "si-kubernetes"
+            description: "Cluster Management"
   widgets.yaml: |
     - kubernetes:
         cluster:
