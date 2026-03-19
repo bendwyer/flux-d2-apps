@@ -20,7 +20,7 @@ spec:
               - --root=/books
             image:
               repository: filebrowser/filebrowser
-              tag: v2.56.0
+              tag: ${FILEBROWSER_IMAGE_TAG}
               pullPolicy: IfNotPresent
             resources:
               requests:

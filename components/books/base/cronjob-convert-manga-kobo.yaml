@@ -23,7 +23,7 @@ spec:
               type: RuntimeDefault
           containers:
             - name: epub2cbz
-              image: ghcr.io/bendwyer/containers/epub2cbz@sha256:323d4a7c17a6814ba01d4ec7698b05762bb6366f4f58fa49e4052f05ce85136f # 1.0.2
+              image: ghcr.io/bendwyer/containers/epub2cbz:${EPUB2CBZ_IMAGE_TAG}@${EPUB2CBZ_IMAGE_DIGEST}
               command: ["python3", "/app/epub2cbz.py"]
               args:
                 - --input-dir
