@@ -23,7 +23,7 @@ spec:
               type: RuntimeDefault
           containers:
             - name: kobodl
-              image: ghcr.io/subdavis/kobodl@sha256:5439b54edcd16211dd6b1567f1b3a976f21770851be29cf0269de8d52b93717b # sha-79d4d8d
+              image: ghcr.io/subdavis/kobodl:${KOBODL_IMAGE_TAG}@${KOBODL_IMAGE_DIGEST}
               command: ["sh", "-c"]
               args:
                 - |
