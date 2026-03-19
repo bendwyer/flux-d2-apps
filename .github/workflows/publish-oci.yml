@@ -29,6 +29,7 @@ jobs:
           - omni
     uses: bendwyer/github-workflows/.github/workflows/flux-publish-oci.yml@main
     with:
+      oci_repo: ghcr.io/bendwyer/d2-apps
       component_name: ${{ matrix.component }}
       artifact_path: ./components
     secrets:
