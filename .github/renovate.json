@@ -4,8 +4,8 @@
   "dependencyDashboard": false,
   "labels": ["dependencies"],
   "separateMinorPatch": true,
-  "flux": { "fileMatch": ["components/.+\\.yaml$"] },
-  "kubernetes": { "fileMatch": ["components/.+\\.yaml$"] },
+  "flux": { "managerFilePatterns": ["/components/.+\\.yaml$/"] },
+  "kubernetes": { "managerFilePatterns": ["/components/.+\\.yaml$/"] },
   "packageRules": [
     {
       "description": "Automerge patch+minor for >=1.x images",
@@ -20,16 +20,6 @@
       "matchCurrentVersion": "<1.0.0",
       "matchUpdateTypes": ["patch", "digest"],
       "automerge": true
-    },
-    {
-      "description": "comictagger uses non-semver tags — use loose versioning",
-      "matchPackageNames": ["ghcr.io/bendwyer/containers/comictagger"],
-      "versioning": "loose"
-    },
-    {
-      "description": "humble-cli 0.22.0+ is known breaking — block it",
-      "matchPackageNames": ["ghcr.io/bendwyer/containers/humble-cli"],
-      "allowedVersions": "<0.22.0"
     },
     {
       "description": "Group comictagger across all manifests",
