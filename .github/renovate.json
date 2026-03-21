@@ -6,6 +6,7 @@
   "separateMinorPatch": true,
   "flux": { "managerFilePatterns": ["/components/.+\\.yaml$/"] },
   "kubernetes": { "managerFilePatterns": ["/components/.+\\.yaml$/"] },
+  "github-actions": { "enabled": false },
   "packageRules": [
     {
       "description": "Automerge patch+minor for >=1.x images",
