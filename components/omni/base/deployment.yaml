@@ -19,7 +19,7 @@ spec:
       priorityClassName: system-cluster-critical
       containers:
         - name: omni
-          image: ghcr.io/siderolabs/omni:${OMNI_IMAGE_TAG}
+          image: ghcr.io/siderolabs/omni:v1.6.1
           args:
             - --name=omni
             - --account-id=${OMNI_ACCOUNT_ID}
