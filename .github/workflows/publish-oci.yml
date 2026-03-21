@@ -3,11 +3,6 @@ name: publish-oci
 
 on:
   workflow_dispatch:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - "components/**"
   push:
     branches:
       - main
@@ -16,21 +11,9 @@ on:
 
 jobs:
   publish:
-    strategy:
-      fail-fast: false # Continue publishing other apps if one fails
-      matrix:
-        component:
-          # add additional applications here
-          - books
-          - flux-webui
-          - goldilocks-webui
-          - homepage
-          - longhorn-webui
-          - omni
     uses: bendwyer/github-workflows/.github/workflows/flux-publish-oci.yml@main
     with:
       oci_repo: ghcr.io/bendwyer/d2-apps
-      component_name: ${{ matrix.component }}
       artifact_path: ./components
     secrets:
       ghcr_token: ${{ secrets.GITHUB_TOKEN }}

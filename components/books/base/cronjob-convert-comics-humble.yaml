@@ -24,7 +24,7 @@ spec:
               type: RuntimeDefault
           containers:
             - name: kcc
-              image: ghcr.io/ciromattia/kcc:${KCC_IMAGE_TAG}
+              image: ghcr.io/ciromattia/kcc:v9.6.2
               command: ["sh", "-c"]
               env:
                 - name: BUNDLE_NAME
