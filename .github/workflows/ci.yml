@@ -13,20 +13,9 @@ jobs:
   publish:
     needs: changes
     if: needs.changes.outputs.changes != '[]'
-    strategy:
-      fail-fast: false
-      matrix:
-        component:
-          - books
-          - flux-webui
-          - goldilocks-webui
-          - homepage
-          - longhorn-webui
-          - omni
     uses: bendwyer/github-workflows/.github/workflows/flux-publish-oci.yml@main
     with:
       oci_repo: ghcr.io/bendwyer/d2-apps
-      component_name: ${{ matrix.component }}
       artifact_path: ./components
     secrets:
       ghcr_token: ${{ secrets.GITHUB_TOKEN }}
