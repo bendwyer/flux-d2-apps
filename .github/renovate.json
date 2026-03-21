@@ -4,6 +4,8 @@
   "dependencyDashboard": false,
   "labels": ["dependencies"],
   "separateMinorPatch": true,
+  "flux": { "fileMatch": ["components/.+\\.yaml$"] },
+  "kubernetes": { "fileMatch": ["components/.+\\.yaml$"] },
   "packageRules": [
     {
       "description": "Automerge patch+minor for >=1.x images",
