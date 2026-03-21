@@ -3,6 +3,7 @@
   "extends": ["config:recommended"],
   "dependencyDashboard": false,
   "labels": ["dependencies"],
+  "separateMinorPatch": true,
   "packageRules": [
     {
       "description": "Automerge patch+minor for >=1.x images",
@@ -16,8 +17,7 @@
       "matchDatasources": ["docker"],
       "matchCurrentVersion": "<1.0.0",
       "matchUpdateTypes": ["patch", "digest"],
-      "automerge": true,
-      "separateMinorPatch": true
+      "automerge": true
     },
     {
       "description": "comictagger uses non-semver tags — use loose versioning",
