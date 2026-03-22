@@ -3,22 +3,28 @@
   "extends": ["config:recommended"],
   "dependencyDashboard": false,
   "labels": ["dependencies"],
+  "rebaseWhen": "behind-base-branch",
   "separateMinorPatch": true,
   "flux": { "managerFilePatterns": ["/components/.+\\.yaml$/"] },
   "kubernetes": { "managerFilePatterns": ["/components/.+\\.yaml$/"] },
   "github-actions": { "enabled": false },
   "packageRules": [
     {
+      "description": "Use semver-coerced versioning for docker images",
+      "matchDatasources": ["docker"],
+      "versioning": "semver-coerced"
+    },
+    {
       "description": "Automerge patch+minor for >=1.x images",
       "matchDatasources": ["docker"],
-      "matchCurrentVersion": ">=1.0.0",
+      "matchCurrentVersion": "/^v?[1-9]/",
       "matchUpdateTypes": ["minor", "patch", "digest"],
       "automerge": true
     },
     {
       "description": "Automerge patch only for 0.x images",
       "matchDatasources": ["docker"],
-      "matchCurrentVersion": "<1.0.0",
+      "matchCurrentVersion": "/^v?0\\./",
       "matchUpdateTypes": ["patch", "digest"],
       "automerge": true
     },
