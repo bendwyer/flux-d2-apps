@@ -26,6 +26,7 @@ spec:
               - apk add --no-cache sqlite && sleep infinity
             resources:
               requests:
-                memory: 32Mi
+                cpu: 50m
+                memory: 128Mi
               limits:
-                memory: 32Mi
+                memory: 128Mi
