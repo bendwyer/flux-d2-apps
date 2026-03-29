@@ -1,0 +1,31 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kavita
+  namespace: books
+spec:
+  interval: 1h
+  values:
+    controllers:
+      kavita:
+        pod:
+          annotations:
+            k8up.io/backupcommand: "sqlite3 /config/kavita.db '.backup /dev/stdout'"
+            k8up.io/file-extension: .sqlite
+            k8up.io/backupcommand-container: sqlite3
+        containers:
+          sqlite3:
+            image:
+              repository: alpine
+              tag: "3"
+              pullPolicy: IfNotPresent
+            command:
+              - /bin/sh
+              - -c
+              - apk add --no-cache sqlite && sleep infinity
+            resources:
+              requests:
+                memory: 32Mi
+              limits:
+                memory: 32Mi
