@@ -17,6 +17,8 @@ kind: PersistentVolumeClaim
 metadata:
   name: kavita-cache-pvc
   namespace: books
+  annotations:
+    k8up.io/backup: "false"
 spec:
   accessModes:
     - ReadWriteOnce
