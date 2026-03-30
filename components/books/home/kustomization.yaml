@@ -9,6 +9,5 @@ resources:
   - onepassworditem-kobo.yaml
   - onepassworditem-k8up.yaml
   - schedule-books.yaml
-# TODO: re-enable after validating sqlite3 backupcommand with k8up exec
-# patches:
-#   - path: values-kavita-backup.yaml
+patches:
+  - path: values-kavita-backup.yaml
