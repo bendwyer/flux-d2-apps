@@ -6,7 +6,7 @@ metadata:
   namespace: books
 spec:
   backup:
-    schedule: "@daily-random"
+    schedule: "30 2 * * *"
     failedJobsHistoryLimit: 3
     successfulJobsHistoryLimit: 3
   prune:
@@ -16,7 +16,7 @@ spec:
       keepWeekly: 4
       keepMonthly: 3
   check:
-    schedule: "0 5 * * 6"
+    schedule: "30 3 * * 6"
   backend:
     repoPasswordSecretRef:
       name: k8up-backup-credentials
