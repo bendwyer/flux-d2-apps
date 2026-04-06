@@ -5,6 +5,10 @@ metadata:
   name: schedule-books
   namespace: books
 spec:
+  podSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
   backup:
     schedule: "30 2 * * *"
     failedJobsHistoryLimit: 3
