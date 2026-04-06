@@ -1,8 +1,49 @@
 ---
+# yaml-language-server: $https://raw.githubusercontent.com/CustomResourceDefinition/catalog/refs/heads/main/schema/k8up.io/schedule_v1.json
 apiVersion: k8up.io/v1
 kind: Schedule
 metadata:
-  name: schedule-books
+  name: schedule-library-shared-pvc
+  namespace: books
+spec:
+  podSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+  backup:
+    schedule: "45 2 * * *"
+    failedJobsHistoryLimit: 3
+    successfulJobsHistoryLimit: 3
+    labelSelectors:
+      - matchLabels:
+          k8up.io/backup-schedule: library-shared
+  prune:
+    schedule: "30 3 * * 6"
+    retention:
+      keepDaily: 7
+      keepWeekly: 4
+      keepMonthly: 3
+  check:
+    schedule: "45 3 * * 6"
+  backend:
+    repoPasswordSecretRef:
+      name: k8up-backup-credentials
+      key: RESTIC_PASSWORD
+    s3:
+      endpoint: https://nbg1.your-objectstorage.com
+      bucket: k8up-home-9935857008/books/library-shared-pvc
+      accessKeyIDSecretRef:
+        name: k8up-backup-credentials
+        key: AWS_ACCESS_KEY_ID
+      secretAccessKeySecretRef:
+        name: k8up-backup-credentials
+        key: AWS_SECRET_ACCESS_KEY
+---
+# yaml-language-server: $https://raw.githubusercontent.com/CustomResourceDefinition/catalog/refs/heads/main/schema/k8up.io/schedule_v1.json
+apiVersion: k8up.io/v1
+kind: Schedule
+metadata:
+  name: schedule-kavita-config-pvc
   namespace: books
 spec:
   podSecurityContext:
@@ -13,6 +54,9 @@ spec:
     schedule: "30 2 * * *"
     failedJobsHistoryLimit: 3
     successfulJobsHistoryLimit: 3
+    labelSelectors:
+      - matchLabels:
+          k8up.io/backup-schedule: kavita-config
   prune:
     schedule: "0 3 * * 6"
     retention:
@@ -20,14 +64,14 @@ spec:
       keepWeekly: 4
       keepMonthly: 3
   check:
-    schedule: "30 3 * * 6"
+    schedule: "15 3 * * 6"
   backend:
     repoPasswordSecretRef:
       name: k8up-backup-credentials
       key: RESTIC_PASSWORD
     s3:
       endpoint: https://nbg1.your-objectstorage.com
-      bucket: k8up-home-9935857008/books
+      bucket: k8up-home-9935857008/books/kavita-config-pvc
       accessKeyIDSecretRef:
         name: k8up-backup-credentials
         key: AWS_ACCESS_KEY_ID

@@ -4,6 +4,8 @@ kind: PersistentVolumeClaim
 metadata:
   name: kavita-config-pvc
   namespace: books
+  labels:
+    k8up.io/backup-schedule: kavita-config
 spec:
   accessModes:
     - ReadWriteOnce
@@ -32,6 +34,8 @@ kind: PersistentVolumeClaim
 metadata:
   name: library-shared-pvc
   namespace: books
+  labels:
+    k8up.io/backup-schedule: library-shared
 spec:
   accessModes:
     - ReadWriteMany

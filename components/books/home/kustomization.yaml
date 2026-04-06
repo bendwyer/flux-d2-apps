@@ -9,5 +9,3 @@ resources:
   - onepassworditem-kobo.yaml
   - onepassworditem-k8up.yaml
   - schedule-books.yaml
-patches:
-  - path: values-kavita-backup.yaml
