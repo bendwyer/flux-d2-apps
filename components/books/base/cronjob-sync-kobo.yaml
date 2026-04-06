@@ -27,6 +27,7 @@ spec:
               command: ["sh", "-c"]
               args:
                 - |
+                  umask 022 &&
                   cp /secret/kobodl.json /tmp/kobodl.json &&
                   mkdir -p /books/sources/kobo &&
                   kobodl --config /tmp/kobodl.json book get --get-all --output-dir /books/sources/kobo --format-str '{Title} - {Author} ({ShortRevisionId})'

@@ -28,6 +28,7 @@ spec:
               command: ["sh", "-c"]
               args:
                 - |
+                  umask 022 &&
                   export HOME=/tmp &&
                   humble-cli auth "$(cat /secret/credential)" &&
                   mkdir -p /books/sources/humble-bundle &&
