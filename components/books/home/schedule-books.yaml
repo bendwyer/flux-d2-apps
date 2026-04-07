@@ -12,8 +12,11 @@ spec:
     fsGroup: 1000
   backup:
     schedule: "45 2 * * *"
+    clusterName: library-shared-pvc
     failedJobsHistoryLimit: 3
     successfulJobsHistoryLimit: 3
+    podConfigRef:
+      name: backup-exclude-lost-found
     labelSelectors:
       - matchLabels:
           k8up.io/backup-schedule: library-shared
@@ -25,6 +28,7 @@ spec:
       keepMonthly: 3
   check:
     schedule: "45 3 * * 6"
+    clusterName: library-shared-pvc
   backend:
     repoPasswordSecretRef:
       name: k8up-backup-credentials
@@ -52,8 +56,11 @@ spec:
     fsGroup: 1000
   backup:
     schedule: "30 2 * * *"
+    clusterName: kavita-config-pvc
     failedJobsHistoryLimit: 3
     successfulJobsHistoryLimit: 3
+    podConfigRef:
+      name: backup-exclude-lost-found
     labelSelectors:
       - matchLabels:
           k8up.io/backup-schedule: kavita-config
@@ -65,6 +72,7 @@ spec:
       keepMonthly: 3
   check:
     schedule: "15 3 * * 6"
+    clusterName: kavita-config-pvc
   backend:
     repoPasswordSecretRef:
       name: k8up-backup-credentials
