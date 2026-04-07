@@ -8,4 +8,5 @@ resources:
   - onepassworditem-humble.yaml
   - onepassworditem-kobo.yaml
   - onepassworditem-k8up.yaml
+  - podconfig-k8up.yaml
   - schedule-books.yaml
