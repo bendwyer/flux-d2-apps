@@ -11,7 +11,7 @@ spec:
     runAsGroup: 1000
     fsGroup: 1000
   backup:
-    schedule: "45 2 * * *"
+    schedule: "45 2,14 * * *"
     clusterName: library-shared-pvc
     failedJobsHistoryLimit: 3
     successfulJobsHistoryLimit: 3
@@ -23,6 +23,7 @@ spec:
   prune:
     schedule: "30 3 * * 6"
     retention:
+      keepHourly: 4
       keepDaily: 7
       keepWeekly: 4
       keepMonthly: 3
@@ -55,7 +56,7 @@ spec:
     runAsGroup: 1000
     fsGroup: 1000
   backup:
-    schedule: "30 2 * * *"
+    schedule: "30 2,14 * * *"
     clusterName: kavita-config-pvc
     failedJobsHistoryLimit: 3
     successfulJobsHistoryLimit: 3
@@ -67,6 +68,7 @@ spec:
   prune:
     schedule: "0 3 * * 6"
     retention:
+      keepHourly: 4
       keepDaily: 7
       keepWeekly: 4
       keepMonthly: 3
