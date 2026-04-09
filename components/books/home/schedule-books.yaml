@@ -15,7 +15,6 @@ spec:
     clusterName: library-shared-pvc
     failedJobsHistoryLimit: 3
     successfulJobsHistoryLimit: 3
-    backoffLimit: 10
     podConfigRef:
       name: backup-exclude-lost-found
     labelSelectors:
@@ -60,7 +59,6 @@ spec:
     clusterName: kavita-config-pvc
     failedJobsHistoryLimit: 3
     successfulJobsHistoryLimit: 3
-    backoffLimit: 10
     podConfigRef:
       name: backup-exclude-lost-found
     labelSelectors:
