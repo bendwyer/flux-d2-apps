@@ -261,7 +261,7 @@ spec:
 
     - name: archive
       container:
-        image: rclone/rclone:1.69.3
+        image: rclone/rclone:1.73.5
         command: ["sh", "-c"]
         args:
           - |
