@@ -271,7 +271,11 @@ spec:
               [ -f "$f" ] || continue
               base=$(basename "$f")
               echo "[archive] $base"
+              # --s3-no-check-bucket: skip HeadBucket/CreateBucket pre-check.
+              # Our IAM policy lacks s3:CreateBucket (by design); without this
+              # flag rclone hangs in silent retry. See reference_ovh_s3_lifecycle.
               rclone copy "$f" "archive:$ARCHIVE_BUCKET/books/kobo/" \
+                --s3-no-check-bucket \
                 --s3-storage-class=STANDARD_IA \
                 --stats-one-line --stats=30s
               rclone check "$f" "archive:$ARCHIVE_BUCKET/books/kobo/$base" --one-way

@@ -581,7 +581,11 @@ spec:
             fi
             dest="archive:$ARCHIVE_BUCKET/books/humble-bundle/$BUNDLE_NAME/"
             echo "[archive] $bundle_dir -> $dest"
+            # --s3-no-check-bucket: skip HeadBucket/CreateBucket pre-check.
+            # Our IAM policy lacks s3:CreateBucket (by design); without this
+            # flag rclone hangs in silent retry. See reference_ovh_s3_lifecycle.
             rclone copy "$bundle_dir" "$dest" \
+              --s3-no-check-bucket \
               --s3-storage-class=STANDARD_IA \
               --stats-one-line --stats=30s --transfers=4
             rclone check "$bundle_dir" "$dest" --one-way
