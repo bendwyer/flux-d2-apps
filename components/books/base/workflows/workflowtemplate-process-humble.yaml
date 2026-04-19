@@ -431,7 +431,7 @@ spec:
         parameters:
           - name: bundle_name
       container:
-        image: rclone/rclone:1.69.0
+        image: rclone/rclone:1.69.3
         command: ["sh", "-c"]
         env:
           - name: BUNDLE_NAME
