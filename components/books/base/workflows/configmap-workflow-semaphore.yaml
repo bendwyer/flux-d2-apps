@@ -1,0 +1,11 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: books-workflow-semaphore
+  namespace: books
+data:
+  # Max concurrent processing workflows (kobo + humble). Each workflow
+  # provisions an ephemeral longhorn-scratch PVC sized to the source payload;
+  # capping concurrency bounds peak cluster disk allocation.
+  processing: "2"

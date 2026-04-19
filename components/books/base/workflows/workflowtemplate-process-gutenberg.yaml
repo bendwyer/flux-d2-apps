@@ -1,0 +1,130 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/CustomResourceDefinition/catalog/refs/heads/main/schema/argoproj.io/workflowtemplate_v1alpha1.json
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: process-gutenberg
+  namespace: books
+spec:
+  serviceAccountName: argo-workflow
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  entrypoint: main
+  # Gutenberg is manual-ingestion (user drops files into
+  # /books/sources/project-gutenberg/) and tiny (~4 MB). No ephemeral scratch
+  # PVC, no semaphore — operates directly on the shared library PVC.
+  volumes:
+    - name: library
+      persistentVolumeClaim:
+        claimName: library-shared-pvc
+    - name: tmp
+      emptyDir: {}
+  templates:
+    - name: main
+      dag:
+        tasks:
+          - name: metadata
+            template: metadata
+          - name: archive
+            template: archive
+            dependencies: [metadata]
+
+    - name: metadata
+      container:
+        image: ghcr.io/bendwyer/containers/ebook-metadata:2.0.1
+        args:
+          - --input-dir
+          - /books/sources/project-gutenberg
+          - --output-dir
+          - /books/library/ebooks
+          - --marker-dir
+          - /books/markers/project-gutenberg
+          - --provider
+          - goodreads
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 512Mi
+        volumeMounts:
+          - name: library
+            mountPath: /books
+          - name: tmp
+            mountPath: /tmp
+
+    - name: archive
+      container:
+        image: rclone/rclone:1.69.0
+        command: ["sh", "-c"]
+        args:
+          - |
+            set -eu
+            ls /books/sources/project-gutenberg/* >/dev/null 2>&1 || { echo "No source files to archive"; exit 0; }
+            count=0
+            for f in /books/sources/project-gutenberg/*; do
+              [ -f "$f" ] || continue
+              base=$(basename "$f")
+              echo "[archive] $base"
+              rclone copy "$f" "archive:$ARCHIVE_BUCKET/books/project-gutenberg/" \
+                --s3-storage-class=STANDARD_IA \
+                --stats-one-line
+              rclone check "$f" "archive:$ARCHIVE_BUCKET/books/project-gutenberg/$base" --one-way
+              rm -f "$f"
+              count=$((count + 1))
+            done
+            echo "archived and removed $count gutenberg files"
+        env:
+          - name: RCLONE_CONFIG_ARCHIVE_TYPE
+            value: "s3"
+          - name: RCLONE_CONFIG_ARCHIVE_PROVIDER
+            value: "Other"
+          - name: RCLONE_CONFIG_ARCHIVE_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: ovhcloud-archive-home-s3
+                key: access_key
+          - name: RCLONE_CONFIG_ARCHIVE_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: ovhcloud-archive-home-s3
+                key: secret_key
+          - name: RCLONE_CONFIG_ARCHIVE_ENDPOINT
+            valueFrom:
+              secretKeyRef:
+                name: ovhcloud-archive-home-s3
+                key: endpoint
+          - name: RCLONE_CONFIG_ARCHIVE_REGION
+            valueFrom:
+              secretKeyRef:
+                name: ovhcloud-archive-home-s3
+                key: region
+          - name: ARCHIVE_BUCKET
+            valueFrom:
+              secretKeyRef:
+                name: ovhcloud-archive-home-s3
+                key: bucket
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 512Mi
+        volumeMounts:
+          - name: library
+            mountPath: /books

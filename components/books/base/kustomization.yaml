@@ -16,6 +16,7 @@ resources:
   # - cronjob-metadata-manga.yaml
   # - cronjob-sync-humble.yaml
   # - cronjob-sync-kobo.yaml
+  - workflows
   - helmrelease-filebrowser.yaml
   - helmrelease-kavita.yaml
   - ingress-filebrowser.yaml

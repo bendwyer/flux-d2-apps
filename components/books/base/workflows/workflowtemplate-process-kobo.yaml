@@ -1,0 +1,361 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/CustomResourceDefinition/catalog/refs/heads/main/schema/argoproj.io/workflowtemplate_v1alpha1.json
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: process-kobo
+  namespace: books
+spec:
+  serviceAccountName: argo-workflow
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  entrypoint: main
+  synchronization:
+    semaphore:
+      configMapKeyRef:
+        name: books-workflow-semaphore
+        key: processing
+  volumeClaimTemplates:
+    - metadata:
+        name: scratch
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: longhorn-scratch
+        resources:
+          requests:
+            storage: 10Gi
+  volumes:
+    - name: library
+      persistentVolumeClaim:
+        claimName: library-shared-pvc
+    - name: tmp
+      emptyDir: {}
+    - name: config
+      emptyDir: {}
+    - name: kobo-secret
+      secret:
+        secretName: kobo-credentials
+    - name: comicvine-secret
+      secret:
+        secretName: comicvine-credentials
+  templates:
+    - name: main
+      dag:
+        tasks:
+          - name: sync
+            template: sync
+          - name: convert-manga
+            template: convert-manga
+            dependencies: [sync]
+          - name: metadata-ebook
+            template: metadata-ebook
+            dependencies: [sync]
+          - name: metadata-manga
+            template: metadata-manga
+            dependencies: [convert-manga]
+          - name: archive
+            template: archive
+            dependencies: [metadata-ebook, metadata-manga]
+          - name: mark-processed
+            template: mark-processed
+            dependencies: [archive]
+
+    - name: sync
+      container:
+        image: ghcr.io/subdavis/kobodl:0.13.0@sha256:2a2ce51556e7886250ecb48ee14f793169a39b7717dc132cb08c444977d03800
+        command: ["sh", "-c"]
+        args:
+          - |
+            set -eu
+            umask 022
+            cp /secret/kobodl.json /tmp/kobodl.json
+            mkdir -p /scratch/sources/kobo /books/markers/processed/kobo
+
+            # Build diff: all purchased ShortRevisionIds minus already-processed markers
+            kobodl --config /tmp/kobodl.json book list > /tmp/all.txt
+            TO_GET=""
+            # kobodl book list prints a table; pull the short IDs column.
+            # Lines look like: "... | AUTHOR | TITLE | <ShortRevisionId> | ..."
+            # Strategy: grep for 8+ char alphanumeric tokens, filter to those
+            # not already present as markers. Tuning may be needed after first
+            # run if kobodl output format changes.
+            for id in $(awk -F'│|\\|' '{for(i=1;i<=NF;i++){gsub(/^ +| +$/,"",$i); if($i ~ /^[a-f0-9]{8,}$/) print $i}}' /tmp/all.txt | sort -u); do
+              [ -f "/books/markers/processed/kobo/${id}.done" ] && continue
+              TO_GET="$TO_GET $id"
+            done
+
+            if [ -z "$TO_GET" ]; then
+              echo "No new books to download."
+              exit 0
+            fi
+            echo "Downloading:$TO_GET"
+            kobodl --config /tmp/kobodl.json book get $TO_GET \
+              --output-dir /scratch/sources/kobo \
+              --format-str '{Title} - {Author} ({ShortRevisionId})'
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 512Mi
+        volumeMounts:
+          - name: kobo-secret
+            mountPath: /secret
+            readOnly: true
+          - name: tmp
+            mountPath: /tmp
+          - name: scratch
+            mountPath: /scratch
+          - name: library
+            mountPath: /books
+
+    - name: convert-manga
+      container:
+        image: ghcr.io/bendwyer/containers/epub2cbz:2.1@sha256:12ab217483477daddd0f102ed40683b4dfe701936b2e383518a0080cf4b8dbfe
+        command: ["python3", "/app/epub2cbz.py"]
+        args:
+          - --input-dir
+          - /scratch/sources/kobo
+          - --output-dir
+          - /scratch/incoming/manga
+          - --min-size
+          - "50"
+          - --marker-dir
+          - /books/markers/manga
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 512Mi
+        volumeMounts:
+          - name: scratch
+            mountPath: /scratch
+          - name: library
+            mountPath: /books
+
+    - name: metadata-ebook
+      container:
+        image: ghcr.io/bendwyer/containers/ebook-metadata:2.0.1
+        args:
+          - --input-dir
+          - /scratch/sources/kobo
+          - --output-dir
+          - /books/library/ebooks
+          - --marker-dir
+          - /books/markers/kobo
+          - --provider
+          - kobo
+          - --country
+          - de
+          - --language
+          - en
+          - --skip-large
+          - "50"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 512Mi
+        volumeMounts:
+          - name: scratch
+            mountPath: /scratch
+          - name: library
+            mountPath: /books
+          - name: tmp
+            mountPath: /tmp
+
+    - name: metadata-manga
+      container:
+        image: ghcr.io/bendwyer/containers/comictagger:1.6@sha256:a8e8424db259313f37c967fdd67ae1a2bcc26fc303ec78cb60249d18ebd1121a
+        command: ["sh", "-c"]
+        args:
+          - |
+            umask 022
+            ls /scratch/incoming/manga/*.cbz >/dev/null 2>&1 || { echo "No .cbz files to process"; exit 0; }
+            for f in /scratch/incoming/manga/*.cbz; do
+              echo "Processing: $f"
+              if comictagger \
+                --no-gui \
+                -s -o -f \
+                --tags-write cr \
+                --source mangabaka \
+                --mangabaka-age-filter pornographic \
+                --config /config \
+                "$f"; then
+                comictagger \
+                  --no-gui \
+                  -r --tags-read cr --move \
+                  --dir /books/library/manga \
+                  --template "{series}/{series} #{issue} ({year})" \
+                  --config /config \
+                  "$f" || echo "Warning: Tagged but failed to rename: $f"
+              else
+                echo "MangaBaka miss, trying ComicVine fallback: $f"
+                if comictagger \
+                  --no-gui \
+                  -s -o -f \
+                  --tags-write cr \
+                  --source comicvine \
+                  --comicvine-key "$(cat /secret/credential)" \
+                  --config /config \
+                  "$f"; then
+                  comictagger \
+                    --no-gui \
+                    -r --tags-read cr --move \
+                    --dir /books/library/manga \
+                    --template "{series}/{series} #{issue} ({year})" \
+                    --config /config \
+                    "$f" || echo "Warning: Tagged but failed to rename: $f"
+                else
+                  echo "Dead-letter (no match in either source): $f"
+                  mkdir -p /books/incoming/manga/_unmatched
+                  mv "$f" /books/incoming/manga/_unmatched/ || echo "Warning: failed to move to _unmatched: $f"
+                fi
+              fi
+            done
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 512Mi
+        volumeMounts:
+          - name: comicvine-secret
+            mountPath: /secret
+            readOnly: true
+          - name: config
+            mountPath: /config
+          - name: tmp
+            mountPath: /tmp
+          - name: scratch
+            mountPath: /scratch
+          - name: library
+            mountPath: /books
+
+    - name: archive
+      container:
+        image: rclone/rclone:1.69.0
+        command: ["sh", "-c"]
+        args:
+          - |
+            set -eu
+            ls /scratch/sources/kobo/*.epub >/dev/null 2>&1 || { echo "No source files to archive"; exit 0; }
+            count=0
+            for f in /scratch/sources/kobo/*.epub; do
+              [ -f "$f" ] || continue
+              base=$(basename "$f")
+              echo "[archive] $base"
+              rclone copy "$f" "archive:$ARCHIVE_BUCKET/books/kobo/" \
+                --s3-storage-class=STANDARD_IA \
+                --stats-one-line --stats=30s
+              rclone check "$f" "archive:$ARCHIVE_BUCKET/books/kobo/$base" --one-way
+              count=$((count + 1))
+            done
+            echo "archived $count kobo source files"
+        env:
+          - name: RCLONE_CONFIG_ARCHIVE_TYPE
+            value: "s3"
+          - name: RCLONE_CONFIG_ARCHIVE_PROVIDER
+            value: "Other"
+          - name: RCLONE_CONFIG_ARCHIVE_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: ovhcloud-archive-home-s3
+                key: access_key
+          - name: RCLONE_CONFIG_ARCHIVE_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: ovhcloud-archive-home-s3
+                key: secret_key
+          - name: RCLONE_CONFIG_ARCHIVE_ENDPOINT
+            valueFrom:
+              secretKeyRef:
+                name: ovhcloud-archive-home-s3
+                key: endpoint
+          - name: RCLONE_CONFIG_ARCHIVE_REGION
+            valueFrom:
+              secretKeyRef:
+                name: ovhcloud-archive-home-s3
+                key: region
+          - name: ARCHIVE_BUCKET
+            valueFrom:
+              secretKeyRef:
+                name: ovhcloud-archive-home-s3
+                key: bucket
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 512Mi
+        volumeMounts:
+          - name: scratch
+            mountPath: /scratch
+
+    - name: mark-processed
+      container:
+        image: alpine:3.23
+        command: ["sh", "-c"]
+        args:
+          - |
+            set -u
+            mkdir -p /books/markers/processed/kobo
+            count=0
+            for f in /scratch/sources/kobo/*.epub; do
+              [ -f "$f" ] || continue
+              base=$(basename "$f")
+              id=$(echo "$base" | sed -E 's/.*\(([[:alnum:]]{7,16})\)\.epub$/\1/')
+              [ -z "$id" ] && continue
+              [ "$id" = "$base" ] && continue
+              touch "/books/markers/processed/kobo/${id}.done"
+              count=$((count + 1))
+            done
+            echo "marked $count kobo books as processed"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            memory: 64Mi
+        volumeMounts:
+          - name: scratch
+            mountPath: /scratch
+          - name: library
+            mountPath: /books
