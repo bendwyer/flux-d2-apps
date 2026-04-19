@@ -1,0 +1,41 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: argo-workflows
+  namespace: books
+spec:
+  groups:
+    - name: argo-workflows.rules
+      rules:
+        - alert: ArgoWorkflowsControllerAbsent
+          expr: absent(argo_workflows_is_leader) == 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: Argo Workflows controller is not reporting metrics
+            description: No argo_workflows_is_leader metric for >5m. Controller is down or metrics scrape is broken.
+        - alert: ArgoWorkflowsFailing
+          expr: argo_workflows_gauge{phase=~"Failed|Error"} > 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $value }} Argo workflow(s) in {{ $labels.phase }} state"
+            description: One or more workflows have been in Failed/Error state for >15m. Check argo.tail0c49c.ts.net for details.
+        - alert: BooksLibraryPVCPressure
+          expr: |
+            kubelet_volume_stats_used_bytes{namespace="books",persistentvolumeclaim="library-shared-pvc"}
+              /
+            kubelet_volume_stats_capacity_bytes{namespace="books",persistentvolumeclaim="library-shared-pvc"}
+              > 0.85
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "library-shared-pvc is {{ $value | humanizePercentage }} full"
+            description: >
+              The books library PVC is above 85% utilisation. Bundles may fail to
+              process (humble bundles can be 40+ GiB each). Check archive workflow
+              state, consider expanding the PVC, or manually clear old sources.

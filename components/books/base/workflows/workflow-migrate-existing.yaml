@@ -1,0 +1,186 @@
+---
+# One-shot migration workflow — run MANUALLY before the new ephemeral-PVC
+# pipeline goes live. Not in kustomization.yaml. Apply with:
+#
+#   argo submit -n books workflow-migrate-existing.yaml --watch
+#
+# Purpose:
+#   1. Seed processed-markers from existing /books/sources/kobo/*.epub filenames
+#      (the old cronjob's --format-str embedded the ShortRevisionId in the
+#      filename, so we can back-fill markers without re-contacting Kobo).
+#   2. Archive the ~52 GiB of existing source files to OVH IA, then delete
+#      local copies — recovering space before any new bundle processing runs.
+#
+# Safe to re-run: archive is idempotent (rclone copy is incremental), marker
+# seeding is idempotent (touch is idempotent).
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: migrate-existing-sources-
+  namespace: books
+spec:
+  serviceAccountName: argo-workflow
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  entrypoint: main
+  volumes:
+    - name: library
+      persistentVolumeClaim:
+        claimName: library-shared-pvc
+  templates:
+    - name: main
+      dag:
+        tasks:
+          - name: seed-kobo-markers
+            template: seed-kobo-markers
+          - name: archive-kobo
+            template: archive-kobo
+            dependencies: [seed-kobo-markers]
+          - name: archive-humble
+            template: archive-humble
+            dependencies: [seed-kobo-markers]
+
+    - name: seed-kobo-markers
+      container:
+        image: alpine:3.23
+        command: ["sh", "-c"]
+        args:
+          - |
+            set -u
+            mkdir -p /books/markers/processed/kobo
+            count=0
+            for f in /books/sources/kobo/*; do
+              [ -f "$f" ] || continue
+              base=$(basename "$f")
+              id=$(echo "$base" | sed -E 's/.*\(([[:alnum:]]{7,16})\)\.[a-z]+$/\1/')
+              [ -z "$id" ] && continue
+              [ "$id" = "$base" ] && continue
+              touch "/books/markers/processed/kobo/${id}.done"
+              count=$((count + 1))
+            done
+            echo "seeded $count kobo markers from existing filenames"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            memory: 64Mi
+        volumeMounts:
+          - name: library
+            mountPath: /books
+
+    - name: archive-kobo
+      container:
+        image: rclone/rclone:1.69.0
+        command: ["sh", "-c"]
+        env: &archive-env
+          - name: RCLONE_CONFIG_ARCHIVE_TYPE
+            value: "s3"
+          - name: RCLONE_CONFIG_ARCHIVE_PROVIDER
+            value: "Other"
+          - name: RCLONE_CONFIG_ARCHIVE_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: ovhcloud-archive-home-s3
+                key: access_key
+          - name: RCLONE_CONFIG_ARCHIVE_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: ovhcloud-archive-home-s3
+                key: secret_key
+          - name: RCLONE_CONFIG_ARCHIVE_ENDPOINT
+            valueFrom:
+              secretKeyRef:
+                name: ovhcloud-archive-home-s3
+                key: endpoint
+          - name: RCLONE_CONFIG_ARCHIVE_REGION
+            valueFrom:
+              secretKeyRef:
+                name: ovhcloud-archive-home-s3
+                key: region
+          - name: ARCHIVE_BUCKET
+            valueFrom:
+              secretKeyRef:
+                name: ovhcloud-archive-home-s3
+                key: bucket
+        args:
+          - |
+            set -eu
+            if [ ! -d /books/sources/kobo ] || [ -z "$(ls -A /books/sources/kobo)" ]; then
+              echo "no kobo sources to migrate"; exit 0
+            fi
+            echo "[migrate] /books/sources/kobo -> archive:$ARCHIVE_BUCKET/books/kobo/"
+            rclone copy /books/sources/kobo "archive:$ARCHIVE_BUCKET/books/kobo/" \
+              --s3-storage-class=STANDARD_IA \
+              --stats-one-line --stats=30s --transfers=4
+            rclone check /books/sources/kobo "archive:$ARCHIVE_BUCKET/books/kobo/" --one-way
+            rm -rf /books/sources/kobo/*
+            echo "kobo sources migrated and removed"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            memory: 512Mi
+        volumeMounts:
+          - name: library
+            mountPath: /books
+
+    - name: archive-humble
+      container:
+        image: rclone/rclone:1.69.0
+        command: ["sh", "-c"]
+        env: *archive-env
+        args:
+          - |
+            set -eu
+            if [ ! -d /books/sources/humble-bundle ] || [ -z "$(ls -A /books/sources/humble-bundle 2>/dev/null)" ]; then
+              echo "no humble sources to migrate"; exit 0
+            fi
+            echo "[migrate] /books/sources/humble-bundle -> archive:$ARCHIVE_BUCKET/books/humble-bundle/"
+            rclone copy /books/sources/humble-bundle "archive:$ARCHIVE_BUCKET/books/humble-bundle/" \
+              --s3-storage-class=STANDARD_IA \
+              --stats-one-line --stats=30s --transfers=4
+            rclone check /books/sources/humble-bundle "archive:$ARCHIVE_BUCKET/books/humble-bundle/" --one-way
+            # Mark each bundle as processed so the new pipeline doesn't retry
+            mkdir -p /books/markers/processed/humble-bundle
+            for d in /books/sources/humble-bundle/*/; do
+              [ -d "$d" ] || continue
+              # No bundle_key in filename; use directory name as identifier.
+              # Future humble workflow runs keyed by bundle_key won't match
+              # these, so user will need to skip already-migrated bundles
+              # manually (check `humble-cli list` against /library/).
+              bundle_name=$(basename "$d")
+              touch "/books/markers/processed/humble-bundle/migrated-${bundle_name}.done"
+            done
+            rm -rf /books/sources/humble-bundle/*
+            echo "humble sources migrated and removed"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            memory: 512Mi
+        volumeMounts:
+          - name: library
+            mountPath: /books

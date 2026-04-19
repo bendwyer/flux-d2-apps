@@ -1,0 +1,22 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - serviceaccount-argo-workflow.yaml
+  - role-argo-workflow.yaml
+  - rolebinding-argo-workflow.yaml
+  - configmap-workflow-semaphore.yaml
+  - onepassworditem-ovh-archive.yaml
+  - workflowtemplate-process-gutenberg.yaml
+  - workflowtemplate-process-kobo.yaml
+  - workflowtemplate-process-humble.yaml
+  # CronWorkflows commented out until each workflow is manually validated
+  # end-to-end via `argo submit -n books --from workflowtemplate/<name>`.
+  # Uncomment (per lane or all at once) after proving:
+  #   gutenberg: a run completes on user-dropped files.
+  #   kobo:      a run completes with markers seeded by workflow-migrate-existing
+  #              (otherwise first run re-downloads the entire Kobo library).
+  # - cronworkflow-gutenberg.yaml
+  # - cronworkflow-kobo.yaml
+  - prometheusrule-argo-workflows.yaml

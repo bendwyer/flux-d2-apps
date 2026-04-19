@@ -1,0 +1,526 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/CustomResourceDefinition/catalog/refs/heads/main/schema/argoproj.io/workflowtemplate_v1alpha1.json
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: process-humble
+  namespace: books
+spec:
+  serviceAccountName: argo-workflow
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  entrypoint: main
+  synchronization:
+    semaphore:
+      configMapKeyRef:
+        name: books-workflow-semaphore
+        key: processing
+  arguments:
+    parameters:
+      - name: bundle_key
+        description: Humble bundle URL key (used for download)
+      - name: bundle_name
+        description: Humble bundle directory name (slug created by humble-cli)
+      - name: lane
+        description: "Destination lane: manga, comics, or ebook"
+        enum: ["manga", "comics", "ebook"]
+      - name: scratch_size
+        description: 'Ephemeral PVC size (e.g. "70Gi"). Humble-cli list shows bundle size; allocate ~1.5x.'
+        value: "70Gi"
+  volumeClaimTemplates:
+    - metadata:
+        name: scratch
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: longhorn-scratch
+        resources:
+          requests:
+            storage: "{{workflow.parameters.scratch_size}}"
+  volumes:
+    - name: library
+      persistentVolumeClaim:
+        claimName: library-shared-pvc
+    - name: tmp
+      emptyDir: {}
+    - name: config
+      emptyDir: {}
+    - name: humble-secret
+      secret:
+        secretName: humble-credentials
+    - name: comicvine-secret
+      secret:
+        secretName: comicvine-credentials
+  templates:
+    - name: main
+      inputs:
+        parameters:
+          - name: bundle_key
+          - name: bundle_name
+          - name: lane
+      dag:
+        tasks:
+          - name: sync
+            template: sync
+            arguments:
+              parameters:
+                - name: bundle_key
+                  value: "{{inputs.parameters.bundle_key}}"
+          - name: convert-manga
+            dependencies: [sync]
+            template: convert-manga
+            when: "'{{inputs.parameters.lane}}' == 'manga'"
+            arguments:
+              parameters:
+                - name: bundle_name
+                  value: "{{inputs.parameters.bundle_name}}"
+          - name: convert-comics
+            dependencies: [sync]
+            template: convert-comics
+            when: "'{{inputs.parameters.lane}}' == 'comics'"
+            arguments:
+              parameters:
+                - name: bundle_name
+                  value: "{{inputs.parameters.bundle_name}}"
+          - name: metadata-manga
+            dependencies: [convert-manga]
+            template: metadata-manga
+            when: "'{{inputs.parameters.lane}}' == 'manga'"
+          - name: metadata-comics
+            dependencies: [convert-comics]
+            template: metadata-comics
+            when: "'{{inputs.parameters.lane}}' == 'comics'"
+          - name: metadata-ebook
+            dependencies: [sync]
+            template: metadata-ebook
+            when: "'{{inputs.parameters.lane}}' == 'ebook'"
+            arguments:
+              parameters:
+                - name: bundle_name
+                  value: "{{inputs.parameters.bundle_name}}"
+          - name: archive
+            dependencies: [metadata-manga, metadata-comics, metadata-ebook]
+            template: archive
+            arguments:
+              parameters:
+                - name: bundle_name
+                  value: "{{inputs.parameters.bundle_name}}"
+          - name: mark-processed
+            dependencies: [archive]
+            template: mark-processed
+            arguments:
+              parameters:
+                - name: bundle_key
+                  value: "{{inputs.parameters.bundle_key}}"
+
+    - name: sync
+      inputs:
+        parameters:
+          - name: bundle_key
+      container:
+        image: ghcr.io/bendwyer/containers/humble-cli:0.23@sha256:5a38dcec9ae925a44c9a6e6a1eadc7160ff175b753f722278d1f3e3a005c0870
+        command: ["sh", "-c"]
+        args:
+          - |
+            set -eu
+            umask 022
+            export HOME=/tmp
+            humble-cli auth "$(cat /secret/credential)"
+            mkdir -p /scratch/sources/humble-bundle
+            cd /scratch/sources/humble-bundle
+            echo "{{inputs.parameters.bundle_key}}" > /tmp/bundles.txt
+            humble-cli bulk-download /tmp/bundles.txt \
+              --format pdf --format "pdf (hq)" \
+              --format epub --format "epub (hq)"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 512Mi
+        volumeMounts:
+          - name: humble-secret
+            mountPath: /secret
+            readOnly: true
+          - name: tmp
+            mountPath: /tmp
+          - name: scratch
+            mountPath: /scratch
+
+    - name: convert-manga
+      inputs:
+        parameters:
+          - name: bundle_name
+      container:
+        image: ghcr.io/ciromattia/kcc:v9.7.2
+        command: ["sh", "-c"]
+        env:
+          - name: BUNDLE_NAME
+            value: "{{inputs.parameters.bundle_name}}"
+        args:
+          - |
+            umask 022
+            find "/scratch/sources/humble-bundle/$BUNDLE_NAME" -name '*.pdf' | head -1 | grep -q . || { echo "No .pdf files to process"; exit 0; }
+            mkdir -p /scratch/incoming/manga
+            find "/scratch/sources/humble-bundle/$BUNDLE_NAME" -name '*.pdf' | while read -r pdf; do
+              parent_name=$(basename "$(dirname "$pdf")")
+              output_name=$(printf '%s' "$parent_name" | sed -E '
+                s/  +.*$//
+                s/ (Volume|Vol) ?\.? ?([0-9]+)$/ \2/
+              ')
+              if ! echo "$output_name" | grep -qE ' [0-9]+$'; then
+                output_name="${output_name} 1"
+              fi
+              echo "Converting: $pdf -> ${output_name}.cbz"
+              pdf_basename=$(basename "$pdf" .pdf)
+              c2e -n -f CBZ -o /scratch/incoming/manga "$pdf" && \
+              mv "/scratch/incoming/manga/${pdf_basename}.cbz" "/scratch/incoming/manga/${output_name}.cbz"
+            done
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 100m
+            memory: 4Gi
+          limits:
+            memory: 4Gi
+        volumeMounts:
+          - name: tmp
+            mountPath: /tmp
+          - name: scratch
+            mountPath: /scratch
+
+    - name: convert-comics
+      inputs:
+        parameters:
+          - name: bundle_name
+      container:
+        image: ghcr.io/ciromattia/kcc:v9.7.2
+        command: ["sh", "-c"]
+        env:
+          - name: BUNDLE_NAME
+            value: "{{inputs.parameters.bundle_name}}"
+        args:
+          - |
+            umask 022
+            find "/scratch/sources/humble-bundle/$BUNDLE_NAME" -name '*.pdf' | head -1 | grep -q . || { echo "No .pdf files to process"; exit 0; }
+            mkdir -p /scratch/incoming/comics
+            find "/scratch/sources/humble-bundle/$BUNDLE_NAME" -name '*.pdf' | while read -r pdf; do
+              if ls "$(dirname "$pdf")"/*HQ*.pdf >/dev/null 2>&1 && \
+                 ! echo "$(basename "$pdf")" | grep -qi 'HQ'; then
+                echo "Skipping non-HQ: $pdf (HQ version available)"
+                continue
+              fi
+              parent_name=$(basename "$(dirname "$pdf")")
+              if echo "$parent_name" | grep -qE ' (Vol|Volume) ?\.? ?[0-9]+  '; then
+                output_name=$(printf '%s' "$parent_name" | sed -E '
+                  s/  +.*$//
+                  s/ (Volume|Vol) ?\.? ?([0-9]+)$/ \2/
+                ')
+              else
+                output_name=$(printf '%s' "$parent_name" | sed -E '
+                  s/  +/ /g
+                  s/ #0*([0-9]+).*$/ \1/
+                  s/ (Volume|Vol) ?\.? ?([0-9]+)$/ \2/
+                ')
+              fi
+              if ! echo "$output_name" | grep -qE ' [0-9]+$'; then
+                output_name="${output_name} 1"
+              fi
+              echo "Converting: $pdf -> ${output_name}.cbz"
+              pdf_basename=$(basename "$pdf" .pdf)
+              c2e -n -f CBZ -o /scratch/incoming/comics "$pdf" && \
+              mv "/scratch/incoming/comics/${pdf_basename}.cbz" "/scratch/incoming/comics/${output_name}.cbz"
+            done
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 100m
+            memory: 4Gi
+          limits:
+            memory: 4Gi
+        volumeMounts:
+          - name: tmp
+            mountPath: /tmp
+          - name: scratch
+            mountPath: /scratch
+
+    - name: metadata-manga
+      container:
+        image: ghcr.io/bendwyer/containers/comictagger:1.6@sha256:a8e8424db259313f37c967fdd67ae1a2bcc26fc303ec78cb60249d18ebd1121a
+        command: ["sh", "-c"]
+        args:
+          - |
+            umask 022
+            ls /scratch/incoming/manga/*.cbz >/dev/null 2>&1 || { echo "No .cbz files to process"; exit 0; }
+            for f in /scratch/incoming/manga/*.cbz; do
+              echo "Processing: $f"
+              if comictagger \
+                --no-gui \
+                -s -o -f \
+                --tags-write cr \
+                --source mangabaka \
+                --mangabaka-age-filter pornographic \
+                --config /config \
+                "$f"; then
+                comictagger \
+                  --no-gui \
+                  -r --tags-read cr --move \
+                  --dir /books/library/manga \
+                  --template "{series}/{series} #{issue} ({year})" \
+                  --config /config \
+                  "$f" || echo "Warning: Tagged but failed to rename: $f"
+              else
+                echo "MangaBaka miss, trying ComicVine fallback: $f"
+                if comictagger \
+                  --no-gui \
+                  -s -o -f \
+                  --tags-write cr \
+                  --source comicvine \
+                  --comicvine-key "$(cat /secret/credential)" \
+                  --config /config \
+                  "$f"; then
+                  comictagger \
+                    --no-gui \
+                    -r --tags-read cr --move \
+                    --dir /books/library/manga \
+                    --template "{series}/{series} #{issue} ({year})" \
+                    --config /config \
+                    "$f" || echo "Warning: Tagged but failed to rename: $f"
+                else
+                  echo "Dead-letter (no match in either source): $f"
+                  mkdir -p /books/incoming/manga/_unmatched
+                  mv "$f" /books/incoming/manga/_unmatched/ || echo "Warning: failed to move to _unmatched: $f"
+                fi
+              fi
+            done
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 512Mi
+        volumeMounts:
+          - name: comicvine-secret
+            mountPath: /secret
+            readOnly: true
+          - name: config
+            mountPath: /config
+          - name: tmp
+            mountPath: /tmp
+          - name: scratch
+            mountPath: /scratch
+          - name: library
+            mountPath: /books
+
+    - name: metadata-comics
+      container:
+        image: ghcr.io/bendwyer/containers/comictagger:1.6@sha256:a8e8424db259313f37c967fdd67ae1a2bcc26fc303ec78cb60249d18ebd1121a
+        command: ["sh", "-c"]
+        args:
+          - |
+            umask 022
+            ls /scratch/incoming/comics/*.cbz >/dev/null 2>&1 || { echo "No .cbz files to process"; exit 0; }
+            for f in /scratch/incoming/comics/*.cbz; do
+              echo "Processing: $f"
+              if comictagger \
+                --no-gui \
+                -s -o -f \
+                --tags-write cr \
+                --source comicvine \
+                --comicvine-key "$(cat /secret/credential)" \
+                --config /config \
+                "$f"; then
+                comictagger \
+                  --no-gui \
+                  -r --tags-read cr --move \
+                  --dir /books/library/comics \
+                  --template "{series} ({year})/{series} #{issue} ({year})" \
+                  --config /config \
+                  "$f" || echo "Warning: Tagged but failed to rename: $f"
+              else
+                echo "Dead-letter (no ComicVine match): $f"
+                mkdir -p /books/incoming/comics/_unmatched
+                mv "$f" /books/incoming/comics/_unmatched/ || echo "Warning: failed to move to _unmatched: $f"
+              fi
+            done
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 512Mi
+        volumeMounts:
+          - name: comicvine-secret
+            mountPath: /secret
+            readOnly: true
+          - name: config
+            mountPath: /config
+          - name: tmp
+            mountPath: /tmp
+          - name: scratch
+            mountPath: /scratch
+          - name: library
+            mountPath: /books
+
+    - name: metadata-ebook
+      inputs:
+        parameters:
+          - name: bundle_name
+      container:
+        image: ghcr.io/bendwyer/containers/ebook-metadata:2.0.1
+        env:
+          - name: BUNDLE_NAME
+            value: "{{inputs.parameters.bundle_name}}"
+        args:
+          - --input-dir
+          - /scratch/sources/humble-bundle/$(BUNDLE_NAME)
+          - --output-dir
+          - /books/library/ebooks
+          - --marker-dir
+          - /books/markers/humble-ebook
+          - --provider
+          - goodreads
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 512Mi
+        volumeMounts:
+          - name: scratch
+            mountPath: /scratch
+          - name: library
+            mountPath: /books
+          - name: tmp
+            mountPath: /tmp
+
+    - name: archive
+      inputs:
+        parameters:
+          - name: bundle_name
+      container:
+        image: rclone/rclone:1.69.0
+        command: ["sh", "-c"]
+        env:
+          - name: BUNDLE_NAME
+            value: "{{inputs.parameters.bundle_name}}"
+          - name: RCLONE_CONFIG_ARCHIVE_TYPE
+            value: "s3"
+          - name: RCLONE_CONFIG_ARCHIVE_PROVIDER
+            value: "Other"
+          - name: RCLONE_CONFIG_ARCHIVE_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: ovhcloud-archive-home-s3
+                key: access_key
+          - name: RCLONE_CONFIG_ARCHIVE_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: ovhcloud-archive-home-s3
+                key: secret_key
+          - name: RCLONE_CONFIG_ARCHIVE_ENDPOINT
+            valueFrom:
+              secretKeyRef:
+                name: ovhcloud-archive-home-s3
+                key: endpoint
+          - name: RCLONE_CONFIG_ARCHIVE_REGION
+            valueFrom:
+              secretKeyRef:
+                name: ovhcloud-archive-home-s3
+                key: region
+          - name: ARCHIVE_BUCKET
+            valueFrom:
+              secretKeyRef:
+                name: ovhcloud-archive-home-s3
+                key: bucket
+        args:
+          - |
+            set -eu
+            bundle_dir="/scratch/sources/humble-bundle/$BUNDLE_NAME"
+            if [ ! -d "$bundle_dir" ]; then
+              echo "Bundle dir missing, nothing to archive"; exit 0
+            fi
+            dest="archive:$ARCHIVE_BUCKET/books/humble-bundle/$BUNDLE_NAME/"
+            echo "[archive] $bundle_dir -> $dest"
+            rclone copy "$bundle_dir" "$dest" \
+              --s3-storage-class=STANDARD_IA \
+              --stats-one-line --stats=30s --transfers=4
+            rclone check "$bundle_dir" "$dest" --one-way
+            echo "archived bundle: $BUNDLE_NAME"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            memory: 512Mi
+        volumeMounts:
+          - name: scratch
+            mountPath: /scratch
+
+    - name: mark-processed
+      inputs:
+        parameters:
+          - name: bundle_key
+      container:
+        image: alpine:3.23
+        command: ["sh", "-c"]
+        env:
+          - name: BUNDLE_KEY
+            value: "{{inputs.parameters.bundle_key}}"
+        args:
+          - |
+            set -u
+            mkdir -p /books/markers/processed/humble-bundle
+            touch "/books/markers/processed/humble-bundle/${BUNDLE_KEY}.done"
+            echo "marked humble bundle $BUNDLE_KEY as processed"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            memory: 64Mi
+        volumeMounts:
+          - name: library
+            mountPath: /books
