@@ -24,7 +24,7 @@ spec:
               type: RuntimeDefault
           containers:
             - name: humble-cli
-              image: ghcr.io/bendwyer/containers/humble-cli:0.23@sha256:97584099959bec4330eb7f1178c06587b215cabcc076b19732e533b580476db7
+              image: ghcr.io/bendwyer/containers/humble-cli:0.23@sha256:5a38dcec9ae925a44c9a6e6a1eadc7160ff175b753f722278d1f3e3a005c0870
               command: ["sh", "-c"]
               args:
                 - |
