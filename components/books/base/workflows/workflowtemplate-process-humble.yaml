@@ -16,10 +16,10 @@ spec:
       type: RuntimeDefault
   entrypoint: main
   synchronization:
-    semaphore:
-      configMapKeyRef:
-        name: books-workflow-semaphore
-        key: processing
+    semaphores:
+      - configMapKeyRef:
+          name: books-workflow-semaphore
+          key: processing
   arguments:
     parameters:
       - name: bundle_key
