@@ -326,7 +326,7 @@ spec:
 
     - name: mark-processed
       container:
-        image: alpine:3.23
+        image: alpine:3.23.4
         command: ["sh", "-c"]
         args:
           - |

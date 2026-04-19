@@ -499,7 +499,7 @@ spec:
         parameters:
           - name: bundle_key
       container:
-        image: alpine:3.23
+        image: alpine:3.23.4
         command: ["sh", "-c"]
         env:
           - name: BUNDLE_KEY
