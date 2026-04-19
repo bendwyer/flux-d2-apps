@@ -2,7 +2,7 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: convert-manga-kobo
+  name: convert-comics-kobo
   namespace: books
 spec:
   schedule: "15 */6 * * *"
@@ -23,18 +23,18 @@ spec:
               type: RuntimeDefault
           containers:
             - name: epub2cbz
-              image: ghcr.io/bendwyer/containers/epub2cbz:2.1@sha256:12ab217483477daddd0f102ed40683b4dfe701936b2e383518a0080cf4b8dbfe
+              image: ghcr.io/bendwyer/containers/epub2cbz:2.0.1@sha256:e366fd1b654a73d366444a5b1b6026ce175cf598f2973f5388abb814964ba44a
               command: ["python3", "/app/epub2cbz.py"]
               args:
                 - --input-dir
                 - /books/sources/kobo
                 - --output-dir
-                - /books/incoming/manga
+                - /books/incoming/comics
                 - --min-size
                 - "50"
                 - --marker-dir
-                - /books/markers/manga
-                - --exclude-pattern
+                - /books/markers/comics
+                - --include-pattern
                 - \bOmnibus\b
               securityContext:
                 allowPrivilegeEscalation: false
