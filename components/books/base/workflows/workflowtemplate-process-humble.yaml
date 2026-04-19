@@ -1,5 +1,4 @@
 ---
-# yaml-language-server: $schema=https://raw.githubusercontent.com/CustomResourceDefinition/catalog/refs/heads/main/schema/argoproj.io/workflowtemplate_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
@@ -30,17 +29,15 @@ spec:
         description: "Destination lane: manga, comics, or ebook"
         enum: ["manga", "comics", "ebook"]
       - name: scratch_size
-        description: 'Ephemeral PVC size (e.g. "70Gi"). Humble-cli list shows bundle size; allocate ~1.5x.'
-        value: "70Gi"
-  volumeClaimTemplates:
-    - metadata:
-        name: scratch
-      spec:
-        accessModes: [ReadWriteOnce]
-        storageClassName: longhorn-scratch
-        resources:
-          requests:
-            storage: "{{workflow.parameters.scratch_size}}"
+        description: 'Ephemeral PVC size (e.g. "70Gi"). From humble-cli list, allocate ~1.5x bundle size.'
+        value: "10Gi"
+  # Scratch PVC is created dynamically via the `resource` template action (see
+  # `create-scratch-pvc` template below) so the size can be parameterized.
+  # volumeClaimTemplates does NOT support parameter substitution on the
+  # storage field — K8s validates the quantity regex before Argo substitutes.
+  # setOwnerReference: true on the create step ties the PVC lifecycle to the
+  # Workflow; the final `delete-scratch-pvc` task cleans up promptly on
+  # success, and ttlStrategy GCs orphaned PVCs on failure within 24h.
   volumes:
     - name: library
       persistentVolumeClaim:
@@ -62,14 +59,24 @@ spec:
           - name: bundle_key
           - name: bundle_name
           - name: lane
+          - name: scratch_size
       dag:
         tasks:
+          - name: create-scratch-pvc
+            template: create-scratch-pvc
+            arguments:
+              parameters:
+                - name: scratch_size
+                  value: "{{inputs.parameters.scratch_size}}"
           - name: sync
+            dependencies: [create-scratch-pvc]
             template: sync
             arguments:
               parameters:
                 - name: bundle_key
                   value: "{{inputs.parameters.bundle_key}}"
+                - name: pvc_name
+                  value: "{{tasks.create-scratch-pvc.outputs.parameters.pvc_name}}"
           - name: convert-manga
             dependencies: [sync]
             template: convert-manga
@@ -78,6 +85,8 @@ spec:
               parameters:
                 - name: bundle_name
                   value: "{{inputs.parameters.bundle_name}}"
+                - name: pvc_name
+                  value: "{{tasks.create-scratch-pvc.outputs.parameters.pvc_name}}"
           - name: convert-comics
             dependencies: [sync]
             template: convert-comics
@@ -86,14 +95,24 @@ spec:
               parameters:
                 - name: bundle_name
                   value: "{{inputs.parameters.bundle_name}}"
+                - name: pvc_name
+                  value: "{{tasks.create-scratch-pvc.outputs.parameters.pvc_name}}"
           - name: metadata-manga
             dependencies: [convert-manga]
             template: metadata-manga
             when: "'{{inputs.parameters.lane}}' == 'manga'"
+            arguments:
+              parameters:
+                - name: pvc_name
+                  value: "{{tasks.create-scratch-pvc.outputs.parameters.pvc_name}}"
           - name: metadata-comics
             dependencies: [convert-comics]
             template: metadata-comics
             when: "'{{inputs.parameters.lane}}' == 'comics'"
+            arguments:
+              parameters:
+                - name: pvc_name
+                  value: "{{tasks.create-scratch-pvc.outputs.parameters.pvc_name}}"
           - name: metadata-ebook
             dependencies: [sync]
             template: metadata-ebook
@@ -102,6 +121,8 @@ spec:
               parameters:
                 - name: bundle_name
                   value: "{{inputs.parameters.bundle_name}}"
+                - name: pvc_name
+                  value: "{{tasks.create-scratch-pvc.outputs.parameters.pvc_name}}"
           - name: archive
             dependencies: [metadata-manga, metadata-comics, metadata-ebook]
             template: archive
@@ -109,6 +130,8 @@ spec:
               parameters:
                 - name: bundle_name
                   value: "{{inputs.parameters.bundle_name}}"
+                - name: pvc_name
+                  value: "{{tasks.create-scratch-pvc.outputs.parameters.pvc_name}}"
           - name: mark-processed
             dependencies: [archive]
             template: mark-processed
@@ -116,11 +139,61 @@ spec:
               parameters:
                 - name: bundle_key
                   value: "{{inputs.parameters.bundle_key}}"
+          - name: delete-scratch-pvc
+            dependencies: [mark-processed]
+            template: delete-scratch-pvc
+            arguments:
+              parameters:
+                - name: pvc_name
+                  value: "{{tasks.create-scratch-pvc.outputs.parameters.pvc_name}}"
+
+    - name: create-scratch-pvc
+      inputs:
+        parameters:
+          - name: scratch_size
+      resource:
+        action: create
+        setOwnerReference: true
+        manifest: |
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            generateName: humble-scratch-
+            namespace: books
+          spec:
+            accessModes: [ReadWriteOnce]
+            storageClassName: longhorn-scratch
+            resources:
+              requests:
+                storage: "{{inputs.parameters.scratch_size}}"
+      outputs:
+        parameters:
+          - name: pvc_name
+            valueFrom:
+              jsonPath: '{.metadata.name}'
+
+    - name: delete-scratch-pvc
+      inputs:
+        parameters:
+          - name: pvc_name
+      resource:
+        action: delete
+        manifest: |
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: "{{inputs.parameters.pvc_name}}"
+            namespace: books
 
     - name: sync
       inputs:
         parameters:
           - name: bundle_key
+          - name: pvc_name
+      volumes:
+        - name: scratch
+          persistentVolumeClaim:
+            claimName: "{{inputs.parameters.pvc_name}}"
       container:
         image: ghcr.io/bendwyer/containers/humble-cli:0.23@sha256:5a38dcec9ae925a44c9a6e6a1eadc7160ff175b753f722278d1f3e3a005c0870
         command: ["sh", "-c"]
@@ -160,6 +233,11 @@ spec:
       inputs:
         parameters:
           - name: bundle_name
+          - name: pvc_name
+      volumes:
+        - name: scratch
+          persistentVolumeClaim:
+            claimName: "{{inputs.parameters.pvc_name}}"
       container:
         image: ghcr.io/ciromattia/kcc:v9.7.2
         command: ["sh", "-c"]
@@ -206,6 +284,11 @@ spec:
       inputs:
         parameters:
           - name: bundle_name
+          - name: pvc_name
+      volumes:
+        - name: scratch
+          persistentVolumeClaim:
+            claimName: "{{inputs.parameters.pvc_name}}"
       container:
         image: ghcr.io/ciromattia/kcc:v9.7.2
         command: ["sh", "-c"]
@@ -262,6 +345,13 @@ spec:
             mountPath: /scratch
 
     - name: metadata-manga
+      inputs:
+        parameters:
+          - name: pvc_name
+      volumes:
+        - name: scratch
+          persistentVolumeClaim:
+            claimName: "{{inputs.parameters.pvc_name}}"
       container:
         image: ghcr.io/bendwyer/containers/comictagger:1.6@sha256:a8e8424db259313f37c967fdd67ae1a2bcc26fc303ec78cb60249d18ebd1121a
         command: ["sh", "-c"]
@@ -335,6 +425,13 @@ spec:
             mountPath: /books
 
     - name: metadata-comics
+      inputs:
+        parameters:
+          - name: pvc_name
+      volumes:
+        - name: scratch
+          persistentVolumeClaim:
+            claimName: "{{inputs.parameters.pvc_name}}"
       container:
         image: ghcr.io/bendwyer/containers/comictagger:1.6@sha256:a8e8424db259313f37c967fdd67ae1a2bcc26fc303ec78cb60249d18ebd1121a
         command: ["sh", "-c"]
@@ -393,6 +490,11 @@ spec:
       inputs:
         parameters:
           - name: bundle_name
+          - name: pvc_name
+      volumes:
+        - name: scratch
+          persistentVolumeClaim:
+            claimName: "{{inputs.parameters.pvc_name}}"
       container:
         image: ghcr.io/bendwyer/containers/ebook-metadata:2.0.1
         env:
@@ -430,6 +532,11 @@ spec:
       inputs:
         parameters:
           - name: bundle_name
+          - name: pvc_name
+      volumes:
+        - name: scratch
+          persistentVolumeClaim:
+            claimName: "{{inputs.parameters.pvc_name}}"
       container:
         image: rclone/rclone:1.73.5
         command: ["sh", "-c"]
