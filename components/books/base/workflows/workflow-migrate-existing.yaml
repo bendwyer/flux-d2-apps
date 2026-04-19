@@ -120,10 +120,17 @@ spec:
               echo "no kobo sources to migrate"; exit 0
             fi
             echo "[migrate] /books/sources/kobo -> archive:$ARCHIVE_BUCKET/books/kobo/"
+            # Diagnostic flags added 2026-04-19:
+            # -v: verbose per-file logging (default NOTICE level suppresses INFO)
+            # --s3-no-check-bucket: skip HeadBucket/CreateBucket pre-check
+            #   (our IAM policy lacks s3:CreateBucket; if HeadBucket silently
+            #   fails the default retry loop stalls without surfacing an error)
             rclone copy /books/sources/kobo "archive:$ARCHIVE_BUCKET/books/kobo/" \
+              -v --s3-no-check-bucket \
               --s3-storage-class=STANDARD_IA \
               --stats-one-line --stats=30s --transfers=4
-            rclone check /books/sources/kobo "archive:$ARCHIVE_BUCKET/books/kobo/" --one-way
+            rclone check /books/sources/kobo "archive:$ARCHIVE_BUCKET/books/kobo/" \
+              -v --one-way
             rm -rf /books/sources/kobo/*
             echo "kobo sources migrated and removed"
         securityContext:
@@ -153,10 +160,13 @@ spec:
               echo "no humble sources to migrate"; exit 0
             fi
             echo "[migrate] /books/sources/humble-bundle -> archive:$ARCHIVE_BUCKET/books/humble-bundle/"
+            # Diagnostic flags — see archive-kobo for rationale
             rclone copy /books/sources/humble-bundle "archive:$ARCHIVE_BUCKET/books/humble-bundle/" \
+              -v --s3-no-check-bucket \
               --s3-storage-class=STANDARD_IA \
               --stats-one-line --stats=30s --transfers=4
-            rclone check /books/sources/humble-bundle "archive:$ARCHIVE_BUCKET/books/humble-bundle/" --one-way
+            rclone check /books/sources/humble-bundle "archive:$ARCHIVE_BUCKET/books/humble-bundle/" \
+              -v --one-way
             # Mark each bundle as processed so the new pipeline doesn't retry
             mkdir -p /books/markers/processed/humble-bundle
             for d in /books/sources/humble-bundle/*/; do
