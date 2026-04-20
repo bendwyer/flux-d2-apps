@@ -75,17 +75,27 @@ spec:
             cp /secret/kobodl.json /tmp/kobodl.json
             mkdir -p /scratch/sources/kobo /books/markers/processed/kobo
 
-            # Build diff: all purchased ShortRevisionIds minus already-processed markers
+            # Build diff: purchased books minus those already processed.
+            #
+            # kobodl book list prints space-formatted columns. The only book
+            # identifier in the output is the full UUID RevisionId
+            # (8-4-4-4-12 hex with hyphens). The 8-char "ShortRevisionId"
+            # used in filenames and markers is a kobodl --format-str output
+            # convention, not a queryable field. We extract full UUIDs from
+            # the list, derive the short form via parameter expansion, and
+            # use the short form for marker lookup. Download command is fed
+            # full UUIDs (book get accepts them).
             kobodl --config /tmp/kobodl.json book list > /tmp/all.txt
             TO_GET=""
-            # kobodl book list prints a table; pull the short IDs column.
-            # Lines look like: "... | AUTHOR | TITLE | <ShortRevisionId> | ..."
-            # Strategy: grep for 8+ char alphanumeric tokens, filter to those
-            # not already present as markers. Tuning may be needed after first
-            # run if kobodl output format changes.
-            for id in $(awk -F'│|\\|' '{for(i=1;i<=NF;i++){gsub(/^ +| +$/,"",$i); if($i ~ /^[a-f0-9]{8,}$/) print $i}}' /tmp/all.txt | sort -u); do
-              [ -f "/books/markers/processed/kobo/${id}.done" ] && continue
-              TO_GET="$TO_GET $id"
+            for full_id in $(awk '{
+                for (i = 1; i <= NF; i++) {
+                  if ($i ~ /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
+                    print $i
+                }
+              }' /tmp/all.txt | sort -u); do
+              short_id="${full_id%%-*}"
+              [ -f "/books/markers/processed/kobo/${short_id}.done" ] && continue
+              TO_GET="$TO_GET $full_id"
             done
 
             if [ -z "$TO_GET" ]; then
