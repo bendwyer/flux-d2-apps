@@ -233,7 +233,7 @@ spec:
 
     - name: metadata-ebook
       container:
-        image: ghcr.io/bendwyer/containers/ebook-metadata:2.0.1
+        image: ghcr.io/bendwyer/containers/ebook-metadata:2.0.2
         args:
           - --input-dir
           - /scratch/sources/kobo
