@@ -489,7 +489,7 @@ spec:
           persistentVolumeClaim:
             claimName: "{{inputs.parameters.pvc_name}}"
       container:
-        image: ghcr.io/bendwyer/containers/ebook-metadata:2.0.1
+        image: ghcr.io/bendwyer/containers/ebook-metadata:2.0.2
         env:
           - name: BUNDLE_NAME
             value: "{{inputs.parameters.bundle_name}}"
