@@ -14,6 +14,9 @@ rules:
   # Required by resource templates (create-scratch-pvc / delete-scratch-pvc)
   # in process-humble. Argo executes the resource action as this SA, so the
   # SA must be able to create/delete PVCs in this namespace.
+  # create/delete for resource-template PVC lifecycle in process-humble.
+  # list/watch required because `kubectl delete --ignore-not-found` (used by
+  # Argo's resource.action=delete) internally runs a watch on the resource.
   - apiGroups: [""]
     resources: ["persistentvolumeclaims"]
-    verbs: ["create", "delete", "get"]
+    verbs: ["create", "delete", "get", "list", "watch"]
