@@ -46,8 +46,11 @@ spec:
     - name: main
       dag:
         tasks:
+          - name: list-archive
+            template: list-archive
           - name: sync
             template: sync
+            dependencies: [list-archive]
           - name: convert-manga
             template: convert-manga
             dependencies: [sync]
@@ -60,10 +63,92 @@ spec:
           - name: archive
             template: archive
             dependencies: [metadata-ebook, metadata-manga]
-          - name: mark-processed
-            template: mark-processed
-            dependencies: [archive]
 
+    # list-archive: enumerates the OVH S3 archive bucket and extracts the
+    # ShortRevisionIds from the archived filenames. Passes the diff baseline
+    # to `sync` via /scratch/archive_short_ids.txt. S3 is the canonical
+    # "already processed" store — no marker files on the library PVC.
+    #
+    # Split into its own DAG task because the kobodl image doesn't have
+    # rclone. One container per concern.
+    - name: list-archive
+      container:
+        image: rclone/rclone:1.73.5
+        command: ["sh", "-c"]
+        args:
+          - |
+            set -eu
+            mkdir -p /scratch
+            # List object keys in the archive's kobo subpath.
+            rclone lsf "archive:$ARCHIVE_BUCKET/books/kobo/" \
+              --s3-no-check-bucket --files-only > /scratch/archive_basenames.txt
+            # Extract ShortRevisionId from trailing "(xxxxxxxx).epub" group.
+            sed -nE 's/.*\(([[:alnum:]]{7,16})\)\.[a-z]+$/\1/p' \
+              /scratch/archive_basenames.txt | sort -u > /scratch/archive_short_ids.txt
+            # Sanity check: bucket has files but regex extracted nothing =
+            # filename convention changed upstream. Fail loud so sync doesn't
+            # silently re-download the entire library.
+            if [ ! -s /scratch/archive_short_ids.txt ] && [ -s /scratch/archive_basenames.txt ]; then
+              echo "ERROR: archive bucket has $(wc -l < /scratch/archive_basenames.txt) files but zero short IDs extracted — regex broken?"
+              head -5 /scratch/archive_basenames.txt
+              exit 1
+            fi
+            echo "archived books in S3: $(wc -l < /scratch/archive_short_ids.txt)"
+        env:
+          - name: RCLONE_CONFIG_ARCHIVE_TYPE
+            value: "s3"
+          - name: RCLONE_CONFIG_ARCHIVE_PROVIDER
+            value: "Other"
+          - name: RCLONE_CONFIG_ARCHIVE_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: ovhcloud-archive-home-s3
+                key: access_key
+          - name: RCLONE_CONFIG_ARCHIVE_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: ovhcloud-archive-home-s3
+                key: secret_key
+          - name: RCLONE_CONFIG_ARCHIVE_ENDPOINT
+            valueFrom:
+              secretKeyRef:
+                name: ovhcloud-archive-home-s3
+                key: endpoint
+          - name: RCLONE_CONFIG_ARCHIVE_REGION
+            valueFrom:
+              secretKeyRef:
+                name: ovhcloud-archive-home-s3
+                key: region
+          - name: ARCHIVE_BUCKET
+            valueFrom:
+              secretKeyRef:
+                name: ovhcloud-archive-home-s3
+                key: bucket
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            memory: 128Mi
+        volumeMounts:
+          - name: scratch
+            mountPath: /scratch
+          - name: tmp
+            mountPath: /tmp
+
+    # sync: diff kobodl's purchased book list against the archive short-IDs
+    # produced by list-archive. Download the unmatched UUIDs.
+    #
+    # kobodl book list prints space-formatted columns; the only book-level
+    # identifier it exposes is the full UUID RevisionId (8-4-4-4-12 hex).
+    # ShortRevisionId (first 8 chars) is a --format-str filename template
+    # convention only. Derive short via ${full_id%%-*} for diff; pass full
+    # UUID to `book get`.
     - name: sync
       container:
         image: ghcr.io/subdavis/kobodl:0.13.0@sha256:2a2ce51556e7886250ecb48ee14f793169a39b7717dc132cb08c444977d03800
@@ -73,18 +158,8 @@ spec:
             set -eu
             umask 022
             cp /secret/kobodl.json /tmp/kobodl.json
-            mkdir -p /scratch/sources/kobo /books/markers/processed/kobo
+            mkdir -p /scratch/sources/kobo
 
-            # Build diff: purchased books minus those already processed.
-            #
-            # kobodl book list prints space-formatted columns. The only book
-            # identifier in the output is the full UUID RevisionId
-            # (8-4-4-4-12 hex with hyphens). The 8-char "ShortRevisionId"
-            # used in filenames and markers is a kobodl --format-str output
-            # convention, not a queryable field. We extract full UUIDs from
-            # the list, derive the short form via parameter expansion, and
-            # use the short form for marker lookup. Download command is fed
-            # full UUIDs (book get accepts them).
             kobodl --config /tmp/kobodl.json book list > /tmp/all.txt
             TO_GET=""
             for full_id in $(awk '{
@@ -94,7 +169,7 @@ spec:
                 }
               }' /tmp/all.txt | sort -u); do
               short_id="${full_id%%-*}"
-              [ -f "/books/markers/processed/kobo/${short_id}.done" ] && continue
+              grep -qx "$short_id" /scratch/archive_short_ids.txt && continue
               TO_GET="$TO_GET $full_id"
             done
 
@@ -125,8 +200,6 @@ spec:
             mountPath: /tmp
           - name: scratch
             mountPath: /scratch
-          - name: library
-            mountPath: /books
 
     - name: convert-manga
       container:
@@ -139,8 +212,10 @@ spec:
           - /scratch/incoming/manga
           - --min-size
           - "50"
+          # Tool markers live on scratch (pod-ephemeral). Scratch starts
+          # empty each run so epub2cbz's internal dedup becomes a no-op.
           - --marker-dir
-          - /books/markers/manga
+          - /scratch/markers/manga
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
@@ -155,8 +230,6 @@ spec:
         volumeMounts:
           - name: scratch
             mountPath: /scratch
-          - name: library
-            mountPath: /books
 
     - name: metadata-ebook
       container:
@@ -167,7 +240,7 @@ spec:
           - --output-dir
           - /books/library/ebooks
           - --marker-dir
-          - /books/markers/kobo
+          - /scratch/markers/kobo
           - --provider
           - kobo
           - --country
@@ -268,6 +341,9 @@ spec:
           - name: library
             mountPath: /books
 
+    # archive: bulk copy + bulk check. rclone's `check` command requires
+    # both args to be directory roots; per-file check against an object
+    # path fails with "is a file not a directory".
     - name: archive
       container:
         image: rclone/rclone:1.73.5
@@ -275,23 +351,20 @@ spec:
         args:
           - |
             set -eu
-            ls /scratch/sources/kobo/*.epub >/dev/null 2>&1 || { echo "No source files to archive"; exit 0; }
-            count=0
-            for f in /scratch/sources/kobo/*.epub; do
-              [ -f "$f" ] || continue
-              base=$(basename "$f")
-              echo "[archive] $base"
-              # --s3-no-check-bucket: skip HeadBucket/CreateBucket pre-check.
-              # Our IAM policy lacks s3:CreateBucket (by design); without this
-              # flag rclone hangs in silent retry. See reference_ovh_s3_lifecycle.
-              rclone copy "$f" "archive:$ARCHIVE_BUCKET/books/kobo/" \
-                --s3-no-check-bucket \
-                --s3-storage-class=STANDARD_IA \
-                --stats-one-line --stats=30s
-              rclone check "$f" "archive:$ARCHIVE_BUCKET/books/kobo/$base" --one-way
-              count=$((count + 1))
-            done
-            echo "archived $count kobo source files"
+            src=/scratch/sources/kobo
+            if [ ! -d "$src" ] || [ -z "$(ls -A "$src" 2>/dev/null)" ]; then
+              echo "No source files to archive"
+              exit 0
+            fi
+            count=$(find "$src" -maxdepth 1 -type f | wc -l)
+            dest="archive:$ARCHIVE_BUCKET/books/kobo/"
+            echo "[archive] $count files: $src -> $dest"
+            rclone copy "$src" "$dest" \
+              --s3-no-check-bucket \
+              --s3-storage-class=STANDARD_IA \
+              --stats-one-line --stats=30s --transfers=4
+            rclone check "$src" "$dest" --one-way
+            echo "archive verified: $count files"
         env:
           - name: RCLONE_CONFIG_ARCHIVE_TYPE
             value: "s3"
@@ -336,39 +409,3 @@ spec:
         volumeMounts:
           - name: scratch
             mountPath: /scratch
-
-    - name: mark-processed
-      container:
-        image: alpine:3.23.4
-        command: ["sh", "-c"]
-        args:
-          - |
-            set -u
-            mkdir -p /books/markers/processed/kobo
-            count=0
-            for f in /scratch/sources/kobo/*.epub; do
-              [ -f "$f" ] || continue
-              base=$(basename "$f")
-              id=$(echo "$base" | sed -E 's/.*\(([[:alnum:]]{7,16})\)\.epub$/\1/')
-              [ -z "$id" ] && continue
-              [ "$id" = "$base" ] && continue
-              touch "/books/markers/processed/kobo/${id}.done"
-              count=$((count + 1))
-            done
-            echo "marked $count kobo books as processed"
-        securityContext:
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
-          capabilities:
-            drop: ["ALL"]
-        resources:
-          requests:
-            cpu: 50m
-            memory: 64Mi
-          limits:
-            memory: 64Mi
-        volumeMounts:
-          - name: scratch
-            mountPath: /scratch
-          - name: library
-            mountPath: /books

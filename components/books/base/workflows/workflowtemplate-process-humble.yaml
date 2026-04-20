@@ -132,15 +132,8 @@ spec:
                   value: "{{inputs.parameters.bundle_name}}"
                 - name: pvc_name
                   value: "{{tasks.create-scratch-pvc.outputs.parameters.pvc_name}}"
-          - name: mark-processed
-            dependencies: [archive]
-            template: mark-processed
-            arguments:
-              parameters:
-                - name: bundle_key
-                  value: "{{inputs.parameters.bundle_key}}"
           - name: delete-scratch-pvc
-            dependencies: [mark-processed]
+            dependencies: [archive]
             template: delete-scratch-pvc
             arguments:
               parameters:
@@ -506,7 +499,7 @@ spec:
           - --output-dir
           - /books/library/ebooks
           - --marker-dir
-          - /books/markers/humble-ebook
+          - /scratch/markers/humble-ebook
           - --provider
           - goodreads
         securityContext:
@@ -605,33 +598,3 @@ spec:
           - name: scratch
             mountPath: /scratch
 
-    - name: mark-processed
-      inputs:
-        parameters:
-          - name: bundle_key
-      container:
-        image: alpine:3.23.4
-        command: ["sh", "-c"]
-        env:
-          - name: BUNDLE_KEY
-            value: "{{inputs.parameters.bundle_key}}"
-        args:
-          - |
-            set -u
-            mkdir -p /books/markers/processed/humble-bundle
-            touch "/books/markers/processed/humble-bundle/${BUNDLE_KEY}.done"
-            echo "marked humble bundle $BUNDLE_KEY as processed"
-        securityContext:
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
-          capabilities:
-            drop: ["ALL"]
-        resources:
-          requests:
-            cpu: 50m
-            memory: 64Mi
-          limits:
-            memory: 64Mi
-        volumeMounts:
-          - name: library
-            mountPath: /books
