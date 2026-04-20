@@ -41,8 +41,11 @@ spec:
           - /books/sources/project-gutenberg
           - --output-dir
           - /books/library/ebooks
+          # Tool markers on the pod-ephemeral tmp volume. The archive step
+          # deletes sources after successful verify, so absence of source
+          # IS the "done" signal — no persistent marker needed.
           - --marker-dir
-          - /books/markers/project-gutenberg
+          - /tmp/markers/project-gutenberg
           - --provider
           - goodreads
         securityContext:
@@ -69,23 +72,26 @@ spec:
         args:
           - |
             set -eu
-            ls /books/sources/project-gutenberg/* >/dev/null 2>&1 || { echo "No source files to archive"; exit 0; }
-            count=0
-            for f in /books/sources/project-gutenberg/*; do
-              [ -f "$f" ] || continue
-              base=$(basename "$f")
-              echo "[archive] $base"
-              # --s3-no-check-bucket: skip HeadBucket/CreateBucket pre-check.
-              # Our IAM policy lacks s3:CreateBucket (by design); without this
-              # flag rclone hangs in silent retry. See reference_ovh_s3_lifecycle.
-              rclone copy "$f" "archive:$ARCHIVE_BUCKET/books/project-gutenberg/" \
-                --s3-no-check-bucket \
-                --s3-storage-class=STANDARD_IA \
-                --stats-one-line
-              rclone check "$f" "archive:$ARCHIVE_BUCKET/books/project-gutenberg/$base" --one-way
-              rm -f "$f"
-              count=$((count + 1))
-            done
+            src=/books/sources/project-gutenberg
+            if [ ! -d "$src" ] || [ -z "$(ls -A "$src" 2>/dev/null)" ]; then
+              echo "No source files to archive"
+              exit 0
+            fi
+            count=$(find "$src" -mindepth 1 -maxdepth 1 -type f | wc -l)
+            dest="archive:$ARCHIVE_BUCKET/books/project-gutenberg/"
+            echo "[archive] $count files: $src -> $dest"
+            # Bulk copy + bulk check. `rclone check` wants directory args; a
+            # per-file loop with file-path destinations fails with "is a file
+            # not a directory".
+            rclone copy "$src" "$dest" \
+              --s3-no-check-bucket \
+              --s3-storage-class=STANDARD_IA \
+              --stats-one-line --stats=30s
+            rclone check "$src" "$dest" --one-way
+            # Delete locals only after verify passes. `set -eu` aborts above
+            # on any non-zero exit, so we never reach this on failure.
+            # Absence of source is the "done" signal — no marker needed.
+            find "$src" -mindepth 1 -maxdepth 1 -type f -delete
             echo "archived and removed $count gutenberg files"
         env:
           - name: RCLONE_CONFIG_ARCHIVE_TYPE
