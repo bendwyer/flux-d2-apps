@@ -14,6 +14,13 @@ spec:
     seccompProfile:
       type: RuntimeDefault
   entrypoint: main
+  # Tiered TTL: successful runs clean up fast; failed runs persist longer
+  # for debugging. Scratch PVC is GC'd via ownerReference cascade when the
+  # Workflow is deleted — no explicit delete step required.
+  ttlStrategy:
+    secondsAfterSuccess: 900       # 15 min on green run
+    secondsAfterFailure: 14400     # 4 hrs for debugging
+    secondsAfterCompletion: 86400  # catch-all, 24 hrs
   synchronization:
     semaphores:
       - configMapKeyRef:
@@ -22,22 +29,32 @@ spec:
   arguments:
     parameters:
       - name: bundle_key
-        description: Humble bundle URL key (used for download)
-      - name: bundle_name
-        description: Humble bundle directory name (slug created by humble-cli)
+        description: Humble bundle URL key (from `humble-cli list` KEY column).
       - name: lane
-        description: "Destination lane: manga, comics, or ebook"
+        description: "Destination lane: manga, comics, or ebook."
         enum: ["manga", "comics", "ebook"]
-      - name: scratch_size
-        description: 'Ephemeral PVC size (e.g. "70Gi"). From humble-cli list, allocate ~1.5x bundle size.'
-        value: "10Gi"
-  # Scratch PVC is created dynamically via the `resource` template action (see
-  # `create-scratch-pvc` template below) so the size can be parameterized.
+      - name: formats
+        description: |
+          Pipe-separated list of humble-cli format names to download.
+          Default covers pdf+epub for all scenarios. Override for bundles
+          where you want a specific format (e.g. "cbz" for smaller comics,
+          "epub|epub (hq)" for ebook-only). Pipe separator is required
+          because format names like "pdf (hq)" contain spaces.
+        value: "pdf|pdf (hq)|epub|epub (hq)"
+  # bundle_name and scratch_size are auto-derived by the `resolve` task at
+  # runtime. bundle_name comes from parsing humble-cli list for the given
+  # bundle_key; scratch_size is the bundle's total-of-all-formats size × 1.5
+  # rounded up to GiB, minimum 2Gi. This is conservative (over-provisions
+  # scratch when `formats` narrows the download) but longhorn-scratch is
+  # single-replica so the over-allocation is cheap.
+  # Scratch PVC is created dynamically via the `resource` template action
+  # (see `create-scratch-pvc`) so the size can be parameterized.
   # volumeClaimTemplates does NOT support parameter substitution on the
   # storage field — K8s validates the quantity regex before Argo substitutes.
-  # setOwnerReference: true on the create step ties the PVC lifecycle to the
-  # Workflow; the final `delete-scratch-pvc` task cleans up promptly on
-  # success, and ttlStrategy GCs orphaned PVCs on failure within 24h.
+  # setOwnerReference: true ties the PVC lifecycle to the Workflow — when
+  # the Workflow is GC'd per ttlStrategy above, the PVC cascades. No
+  # explicit delete step: synchronous kubectl-delete blocked on PVC
+  # finalizers can hang unpredictably and stall workflow completion.
   volumes:
     - name: library
       persistentVolumeClaim:
@@ -57,17 +74,23 @@ spec:
       inputs:
         parameters:
           - name: bundle_key
-          - name: bundle_name
           - name: lane
-          - name: scratch_size
+          - name: formats
       dag:
         tasks:
+          - name: resolve
+            template: resolve
+            arguments:
+              parameters:
+                - name: bundle_key
+                  value: "{{inputs.parameters.bundle_key}}"
           - name: create-scratch-pvc
+            dependencies: [resolve]
             template: create-scratch-pvc
             arguments:
               parameters:
                 - name: scratch_size
-                  value: "{{inputs.parameters.scratch_size}}"
+                  value: "{{tasks.resolve.outputs.parameters.scratch_size}}"
           - name: sync
             dependencies: [create-scratch-pvc]
             template: sync
@@ -75,6 +98,8 @@ spec:
               parameters:
                 - name: bundle_key
                   value: "{{inputs.parameters.bundle_key}}"
+                - name: formats
+                  value: "{{inputs.parameters.formats}}"
                 - name: pvc_name
                   value: "{{tasks.create-scratch-pvc.outputs.parameters.pvc_name}}"
           - name: convert-manga
@@ -84,7 +109,7 @@ spec:
             arguments:
               parameters:
                 - name: bundle_name
-                  value: "{{inputs.parameters.bundle_name}}"
+                  value: "{{tasks.sync.outputs.parameters.bundle_name}}"
                 - name: pvc_name
                   value: "{{tasks.create-scratch-pvc.outputs.parameters.pvc_name}}"
           - name: convert-comics
@@ -94,7 +119,7 @@ spec:
             arguments:
               parameters:
                 - name: bundle_name
-                  value: "{{inputs.parameters.bundle_name}}"
+                  value: "{{tasks.sync.outputs.parameters.bundle_name}}"
                 - name: pvc_name
                   value: "{{tasks.create-scratch-pvc.outputs.parameters.pvc_name}}"
           - name: metadata-manga
@@ -120,7 +145,7 @@ spec:
             arguments:
               parameters:
                 - name: bundle_name
-                  value: "{{inputs.parameters.bundle_name}}"
+                  value: "{{tasks.sync.outputs.parameters.bundle_name}}"
                 - name: pvc_name
                   value: "{{tasks.create-scratch-pvc.outputs.parameters.pvc_name}}"
           - name: archive
@@ -129,16 +154,100 @@ spec:
             arguments:
               parameters:
                 - name: bundle_name
-                  value: "{{inputs.parameters.bundle_name}}"
+                  value: "{{tasks.sync.outputs.parameters.bundle_name}}"
                 - name: pvc_name
                   value: "{{tasks.create-scratch-pvc.outputs.parameters.pvc_name}}"
-          - name: delete-scratch-pvc
-            dependencies: [archive]
-            template: delete-scratch-pvc
-            arguments:
-              parameters:
-                - name: pvc_name
-                  value: "{{tasks.create-scratch-pvc.outputs.parameters.pvc_name}}"
+
+    # resolve: look up the bundle in `humble-cli list` by its key; emit
+    # bundle_name (dir slug) and scratch_size as output parameters for
+    # downstream tasks. No scratch PVC yet — runs on /tmp only.
+    - name: resolve
+      inputs:
+        parameters:
+          - name: bundle_key
+      container:
+        image: ghcr.io/bendwyer/containers/humble-cli:0.23@sha256:5a38dcec9ae925a44c9a6e6a1eadc7160ff175b753f722278d1f3e3a005c0870
+        command: ["sh", "-c"]
+        args:
+          - |
+            set -eu
+            umask 022
+            export HOME=/tmp
+            humble-cli auth "$(cat /secret/credential)"
+            humble-cli list > /tmp/all.txt
+
+            # humble-cli list table uses box-drawing "│" as column separator.
+            # Columns: KEY, NAME, SIZE, CLAIMED. Find the row matching bundle_key
+            # and extract name + size.
+            row=$(awk -F'│' -v k="{{inputs.parameters.bundle_key}}" '{
+              gsub(/^ +| +$/, "", $2)
+              if ($2 == k) {
+                for (i = 2; i <= NF; i++) {
+                  gsub(/^ +| +$/, "", $i)
+                  printf "%s\t", $i
+                }
+                print ""
+              }
+            }' /tmp/all.txt)
+
+            if [ -z "$row" ]; then
+              echo "ERROR: bundle not found: {{inputs.parameters.bundle_key}}"
+              echo "---"
+              head -5 /tmp/all.txt
+              exit 1
+            fi
+
+            name=$(printf '%s' "$row" | cut -f2)
+            size=$(printf '%s' "$row" | cut -f3)
+
+            # Convert size (e.g. "45.9 GiB" / "112.1 MiB") to GiB × 1.5,
+            # rounded up, minimum 2Gi.
+            unit=$(printf '%s' "$size" | awk '{print $2}')
+            value=$(printf '%s' "$size" | awk '{print $1}')
+            case "$unit" in
+              MiB|MB) mib=$(awk -v v="$value" 'BEGIN{printf "%.0f", v}') ;;
+              GiB|GB) mib=$(awk -v v="$value" 'BEGIN{printf "%.0f", v*1024}') ;;
+              TiB|TB) mib=$(awk -v v="$value" 'BEGIN{printf "%.0f", v*1024*1024}') ;;
+              *)      echo "ERROR: unknown size unit: $unit"; exit 1 ;;
+            esac
+            scratch_gi=$(awk -v m="$mib" 'BEGIN{
+              need_mib = m * 1.5
+              g = int((need_mib + 1023) / 1024)
+              if (g < 2) g = 2
+              print g
+            }')
+
+            echo "resolved:"
+            echo "  bundle_name (from list): $name"
+            echo "  bundle_size: $size"
+            echo "  scratch_size: ${scratch_gi}Gi"
+            echo "  (actual on-disk bundle_name will be emitted by sync"
+            echo "   after bulk-download; humble-cli sanitizes some chars"
+            echo "   like ':' in the real dir slug)"
+
+            printf '%s' "${scratch_gi}Gi" > /tmp/scratch_size.txt
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            memory: 256Mi
+        volumeMounts:
+          - name: humble-secret
+            mountPath: /secret
+            readOnly: true
+          - name: tmp
+            mountPath: /tmp
+      outputs:
+        parameters:
+          - name: scratch_size
+            valueFrom:
+              path: /tmp/scratch_size.txt
 
     - name: create-scratch-pvc
       inputs:
@@ -165,23 +274,11 @@ spec:
             valueFrom:
               jsonPath: '{.metadata.name}'
 
-    - name: delete-scratch-pvc
-      inputs:
-        parameters:
-          - name: pvc_name
-      resource:
-        action: delete
-        manifest: |
-          apiVersion: v1
-          kind: PersistentVolumeClaim
-          metadata:
-            name: "{{inputs.parameters.pvc_name}}"
-            namespace: books
-
     - name: sync
       inputs:
         parameters:
           - name: bundle_key
+          - name: formats
           - name: pvc_name
       volumes:
         - name: scratch
@@ -199,9 +296,48 @@ spec:
             mkdir -p /scratch/sources/humble-bundle
             cd /scratch/sources/humble-bundle
             echo "{{inputs.parameters.bundle_key}}" > /tmp/bundles.txt
-            humble-cli bulk-download /tmp/bundles.txt \
-              --format pdf --format "pdf (hq)" \
-              --format epub --format "epub (hq)"
+
+            # Parse pipe-separated `formats` into multiple --format flags.
+            # Pipe separator because format names ("pdf (hq)") contain
+            # spaces. Assign Argo's substitution to a single-quoted variable
+            # first — if we used `set -- {{inputs.parameters.formats}}`
+            # directly, the shell would parse "(hq)" as subshell syntax at
+            # parse time, before any variable expansion. Via a variable,
+            # parens are literal chars in the expanded value. `set -f`
+            # disables globbing just in case.
+            formats_raw='{{inputs.parameters.formats}}'
+            set -f
+            IFS='|'
+            set -- $formats_raw
+            unset IFS
+            set +f
+            cmd="humble-cli bulk-download /tmp/bundles.txt"
+            for fmt in "$@"; do
+              esc=$(printf '%s' "$fmt" | sed "s/'/'\\\\''/g")
+              cmd="$cmd --format '$esc'"
+            done
+            echo "running: $cmd"
+            eval "$cmd"
+
+            # Detect the actual bundle directory humble-cli created.
+            # humble-cli sanitizes some characters (e.g. ":" becomes "  ") so
+            # the list-output name is not always the filesystem slug. Read
+            # the real slug from /scratch and emit it as an output param so
+            # downstream tasks work against the correct path.
+            dirs=$(find /scratch/sources/humble-bundle -mindepth 1 -maxdepth 1 -type d | wc -l)
+            if [ "$dirs" -eq 0 ]; then
+              echo "ERROR: bulk-download completed but created no directory"
+              exit 1
+            fi
+            if [ "$dirs" -gt 1 ]; then
+              echo "ERROR: bulk-download created $dirs directories — expected exactly 1"
+              find /scratch/sources/humble-bundle -mindepth 1 -maxdepth 1 -type d
+              exit 1
+            fi
+            bundle_dir=$(find /scratch/sources/humble-bundle -mindepth 1 -maxdepth 1 -type d)
+            bundle_name=$(basename "$bundle_dir")
+            echo "detected bundle_name: $bundle_name"
+            printf '%s' "$bundle_name" > /tmp/bundle_name.txt
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
@@ -221,6 +357,11 @@ spec:
             mountPath: /tmp
           - name: scratch
             mountPath: /scratch
+      outputs:
+        parameters:
+          - name: bundle_name
+            valueFrom:
+              path: /tmp/bundle_name.txt
 
     - name: convert-manga
       inputs:
@@ -597,4 +738,3 @@ spec:
         volumeMounts:
           - name: scratch
             mountPath: /scratch
-

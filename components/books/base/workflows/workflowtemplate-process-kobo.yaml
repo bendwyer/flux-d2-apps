@@ -14,6 +14,13 @@ spec:
     seccompProfile:
       type: RuntimeDefault
   entrypoint: main
+  # Tiered TTL: successful runs clean up fast; failed runs persist longer
+  # for debugging. Scratch PVC (from volumeClaimTemplates) is lifecycle-tied
+  # to the Workflow and cascades on Workflow GC.
+  ttlStrategy:
+    secondsAfterSuccess: 900       # 15 min on green run
+    secondsAfterFailure: 14400     # 4 hrs for debugging
+    secondsAfterCompletion: 86400  # catch-all, 24 hrs
   synchronization:
     semaphores:
       - configMapKeyRef:
