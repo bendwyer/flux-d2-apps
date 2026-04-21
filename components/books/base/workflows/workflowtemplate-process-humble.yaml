@@ -14,18 +14,27 @@ spec:
     seccompProfile:
       type: RuntimeDefault
   entrypoint: main
-  # Tiered TTL: successful runs clean up fast; failed runs persist longer
-  # for debugging. Scratch PVC is GC'd via ownerReference cascade when the
-  # Workflow is deleted — no explicit delete step required.
+  # Gates scratch-PVC delete on workflow success. See `cleanup` template.
+  onExit: cleanup
+  # TTL governs the Workflow resource only. Scratch PVC lifecycle is
+  # handled by `onExit` on success + cleanup cron for orphans.
   ttlStrategy:
-    secondsAfterSuccess: 900       # 15 min on green run
-    secondsAfterFailure: 14400     # 4 hrs for debugging
-    secondsAfterCompletion: 86400  # catch-all, 24 hrs
+    secondsAfterSuccess: 900
+    secondsAfterFailure: 14400
+    secondsAfterCompletion: 86400
+  # Failure recovery: fix root cause → `kubectl delete workflow` →
+  # resubmit with same bundle_key. Scratch persists, done-markers skip
+  # completed work. Do NOT `argo retry` for template fixes —
+  # status.storedWorkflowTemplateSpec is snapshotted at submit time.
   synchronization:
+    # Global cap across humble+kobo.
     semaphores:
       - configMapKeyRef:
           name: books-workflow-semaphore
           key: processing
+    # Same-bundle serialization (makes RWO-mount contention explicit).
+    mutexes:
+      - name: "humble-bundle-{{workflow.parameters.bundle_key}}"
   arguments:
     parameters:
       - name: bundle_key
@@ -41,22 +50,11 @@ spec:
           "epub|epub (hq)" for ebook-only). Pipe separator is required
           because format names like "pdf (hq)" contain spaces.
         value: "pdf|pdf (hq)|epub|epub (hq)"
-  # bundle_name and scratch_size are auto-derived by the `resolve` task at
-  # runtime. bundle_name comes from sync (detected post-download because
-  # humble-cli sanitizes some chars in the dir slug); scratch_size is the
-  # bundle's total-of-all-formats size × 3 rounded up to GiB, minimum 4Gi.
-  # The 3x covers source + converted output co-resident during conversion
-  # (kcc writes CBZs alongside source PDFs for comics/manga). Conservative
-  # for narrow `formats` overrides, but longhorn-scratch is single-replica
-  # so the over-allocation is cheap.
-  # Scratch PVC is created dynamically via the `resource` template action
-  # (see `create-scratch-pvc`) so the size can be parameterized.
-  # volumeClaimTemplates does NOT support parameter substitution on the
-  # storage field — K8s validates the quantity regex before Argo substitutes.
-  # setOwnerReference: true ties the PVC lifecycle to the Workflow — when
-  # the Workflow is GC'd per ttlStrategy above, the PVC cascades. No
-  # explicit delete step: synchronous kubectl-delete blocked on PVC
-  # finalizers can hang unpredictably and stall workflow completion.
+  # bundle_name and scratch_size are derived at runtime by `resolve`.
+  # scratch_size = bundle total × 3 rounded to GiB, min 4Gi (covers source +
+  # converted output co-resident during kcc).
+  # PVC built via resource template, not volumeClaimTemplates — the latter
+  # can't substitute parameters into the storage quantity.
   volumes:
     - name: library
       persistentVolumeClaim:
@@ -86,15 +84,17 @@ spec:
               parameters:
                 - name: bundle_key
                   value: "{{inputs.parameters.bundle_key}}"
-          - name: create-scratch-pvc
+          - name: ensure-scratch-pvc
             dependencies: [resolve]
-            template: create-scratch-pvc
+            template: ensure-scratch-pvc
             arguments:
               parameters:
+                - name: bundle_key
+                  value: "{{inputs.parameters.bundle_key}}"
                 - name: scratch_size
                   value: "{{tasks.resolve.outputs.parameters.scratch_size}}"
           - name: sync
-            dependencies: [create-scratch-pvc]
+            dependencies: [ensure-scratch-pvc]
             template: sync
             arguments:
               parameters:
@@ -103,7 +103,7 @@ spec:
                 - name: formats
                   value: "{{inputs.parameters.formats}}"
                 - name: pvc_name
-                  value: "{{tasks.create-scratch-pvc.outputs.parameters.pvc_name}}"
+                  value: "{{tasks.ensure-scratch-pvc.outputs.parameters.pvc_name}}"
           - name: convert-manga
             dependencies: [sync]
             template: convert-manga
@@ -113,7 +113,7 @@ spec:
                 - name: bundle_name
                   value: "{{tasks.sync.outputs.parameters.bundle_name}}"
                 - name: pvc_name
-                  value: "{{tasks.create-scratch-pvc.outputs.parameters.pvc_name}}"
+                  value: "{{tasks.ensure-scratch-pvc.outputs.parameters.pvc_name}}"
           - name: convert-comics
             dependencies: [sync]
             template: convert-comics
@@ -123,7 +123,7 @@ spec:
                 - name: bundle_name
                   value: "{{tasks.sync.outputs.parameters.bundle_name}}"
                 - name: pvc_name
-                  value: "{{tasks.create-scratch-pvc.outputs.parameters.pvc_name}}"
+                  value: "{{tasks.ensure-scratch-pvc.outputs.parameters.pvc_name}}"
           - name: metadata-manga
             dependencies: [convert-manga]
             template: metadata-manga
@@ -131,7 +131,7 @@ spec:
             arguments:
               parameters:
                 - name: pvc_name
-                  value: "{{tasks.create-scratch-pvc.outputs.parameters.pvc_name}}"
+                  value: "{{tasks.ensure-scratch-pvc.outputs.parameters.pvc_name}}"
           - name: metadata-comics
             dependencies: [convert-comics]
             template: metadata-comics
@@ -139,7 +139,7 @@ spec:
             arguments:
               parameters:
                 - name: pvc_name
-                  value: "{{tasks.create-scratch-pvc.outputs.parameters.pvc_name}}"
+                  value: "{{tasks.ensure-scratch-pvc.outputs.parameters.pvc_name}}"
           - name: metadata-ebook
             dependencies: [sync]
             template: metadata-ebook
@@ -149,7 +149,7 @@ spec:
                 - name: bundle_name
                   value: "{{tasks.sync.outputs.parameters.bundle_name}}"
                 - name: pvc_name
-                  value: "{{tasks.create-scratch-pvc.outputs.parameters.pvc_name}}"
+                  value: "{{tasks.ensure-scratch-pvc.outputs.parameters.pvc_name}}"
           - name: archive
             dependencies: [metadata-manga, metadata-comics, metadata-ebook]
             template: archive
@@ -158,7 +158,7 @@ spec:
                 - name: bundle_name
                   value: "{{tasks.sync.outputs.parameters.bundle_name}}"
                 - name: pvc_name
-                  value: "{{tasks.create-scratch-pvc.outputs.parameters.pvc_name}}"
+                  value: "{{tasks.ensure-scratch-pvc.outputs.parameters.pvc_name}}"
 
     # resolve: look up the bundle in `humble-cli list` by its key; emit
     # bundle_name (dir slug) and scratch_size as output parameters for
@@ -256,19 +256,29 @@ spec:
             valueFrom:
               path: /tmp/scratch_size.txt
 
-    - name: create-scratch-pvc
+    # Idempotent create-or-noop via SSA. Deterministic name lets a resubmit
+    # reuse the PVC across workflow invocations. No ownerReference —
+    # lifecycle handled by onExit (success) + cleanup cron (orphans).
+    # SSA will fail on size change (immutable field); bundle sizes are
+    # stable in practice.
+    - name: ensure-scratch-pvc
       inputs:
         parameters:
+          - name: bundle_key
           - name: scratch_size
       resource:
-        action: create
-        setOwnerReference: true
+        action: apply
+        setOwnerReference: false
         manifest: |
           apiVersion: v1
           kind: PersistentVolumeClaim
           metadata:
-            generateName: humble-scratch-
+            name: humble-bundle-{{inputs.parameters.bundle_key}}
             namespace: books
+            labels:
+              app.kubernetes.io/name: process-humble
+              app.kubernetes.io/managed-by: argo-workflows
+              books.bendwyer.net/bundle-key: "{{inputs.parameters.bundle_key}}"
           spec:
             accessModes: [ReadWriteOnce]
             storageClassName: longhorn-scratch
@@ -399,6 +409,12 @@ spec:
               if ! echo "$output_name" | grep -qE ' [0-9]+$'; then
                 output_name="${output_name} 1"
               fi
+              # Resubmit idempotency: see convert-comics.
+              if [ -f "/scratch/incoming/manga/${output_name}.cbz" ] || \
+                 [ -f "/scratch/incoming/manga/${output_name}.cbz.done" ]; then
+                echo "Skipping (already processed): ${output_name}.cbz"
+                continue
+              fi
               echo "Converting: $pdf -> ${output_name}.cbz"
               pdf_basename=$(basename "$pdf" .pdf)
               c2e -n -f CBZ -o /scratch/incoming/manga "$pdf" && \
@@ -463,6 +479,13 @@ spec:
               if ! echo "$output_name" | grep -qE ' [0-9]+$'; then
                 output_name="${output_name} 1"
               fi
+              # Resubmit idempotency: .cbz = still-on-scratch,
+              # .cbz.done = already handled by metadata (library or _unmatched).
+              if [ -f "/scratch/incoming/comics/${output_name}.cbz" ] || \
+                 [ -f "/scratch/incoming/comics/${output_name}.cbz.done" ]; then
+                echo "Skipping (already processed): ${output_name}.cbz"
+                continue
+              fi
               echo "Converting: $pdf -> ${output_name}.cbz"
               pdf_basename=$(basename "$pdf" .pdf)
               c2e -n -f CBZ -o /scratch/incoming/comics "$pdf" && \
@@ -500,8 +523,10 @@ spec:
           - |
             umask 022
             ls /scratch/incoming/manga/*.cbz >/dev/null 2>&1 || { echo "No .cbz files to process"; exit 0; }
+            # .done marker on terminal outcomes; see metadata-comics.
             for f in /scratch/incoming/manga/*.cbz; do
               echo "Processing: $f"
+              base=$(basename "$f")
               if comictagger \
                 --no-gui \
                 -s -o -f \
@@ -510,13 +535,17 @@ spec:
                 --mangabaka-age-filter pornographic \
                 --config /config \
                 "$f"; then
-                comictagger \
+                if comictagger \
                   --no-gui \
                   -r --tags-read cr --move \
                   --dir /books/library/manga \
                   --template "{series}/{series} #{issue} ({year})" \
                   --config /config \
-                  "$f" || echo "Warning: Tagged but failed to rename: $f"
+                  "$f"; then
+                  touch "/scratch/incoming/manga/${base}.done"
+                else
+                  echo "Warning: Tagged but failed to rename: $f"
+                fi
               else
                 echo "MangaBaka miss, trying ComicVine fallback: $f"
                 if comictagger \
@@ -527,17 +556,25 @@ spec:
                   --comicvine-key "$(cat /secret/credential)" \
                   --config /config \
                   "$f"; then
-                  comictagger \
+                  if comictagger \
                     --no-gui \
                     -r --tags-read cr --move \
                     --dir /books/library/manga \
                     --template "{series}/{series} #{issue} ({year})" \
                     --config /config \
-                    "$f" || echo "Warning: Tagged but failed to rename: $f"
+                    "$f"; then
+                    touch "/scratch/incoming/manga/${base}.done"
+                  else
+                    echo "Warning: Tagged but failed to rename: $f"
+                  fi
                 else
                   echo "Dead-letter (no match in either source): $f"
                   mkdir -p /books/incoming/manga/_unmatched
-                  mv "$f" /books/incoming/manga/_unmatched/ || echo "Warning: failed to move to _unmatched: $f"
+                  if mv "$f" /books/incoming/manga/_unmatched/; then
+                    touch "/scratch/incoming/manga/${base}.done"
+                  else
+                    echo "Warning: failed to move to _unmatched: $f"
+                  fi
                 fi
               fi
             done
@@ -580,8 +617,12 @@ spec:
           - |
             umask 022
             ls /scratch/incoming/comics/*.cbz >/dev/null 2>&1 || { echo "No .cbz files to process"; exit 0; }
+            # .done marker written on terminal outcomes only (library-moved
+            # or dead-lettered). Skipped on "tagged but rename failed" so
+            # that case retries on resubmit.
             for f in /scratch/incoming/comics/*.cbz; do
               echo "Processing: $f"
+              base=$(basename "$f")
               if comictagger \
                 --no-gui \
                 -s -o -f \
@@ -590,17 +631,25 @@ spec:
                 --comicvine-key "$(cat /secret/credential)" \
                 --config /config \
                 "$f"; then
-                comictagger \
+                if comictagger \
                   --no-gui \
                   -r --tags-read cr --move \
                   --dir /books/library/comics \
                   --template "{series} ({year})/{series} #{issue} ({year})" \
                   --config /config \
-                  "$f" || echo "Warning: Tagged but failed to rename: $f"
+                  "$f"; then
+                  touch "/scratch/incoming/comics/${base}.done"
+                else
+                  echo "Warning: Tagged but failed to rename: $f"
+                fi
               else
                 echo "Dead-letter (no ComicVine match): $f"
                 mkdir -p /books/incoming/comics/_unmatched
-                mv "$f" /books/incoming/comics/_unmatched/ || echo "Warning: failed to move to _unmatched: $f"
+                if mv "$f" /books/incoming/comics/_unmatched/; then
+                  touch "/scratch/incoming/comics/${base}.done"
+                else
+                  echo "Warning: failed to move to _unmatched: $f"
+                fi
               fi
             done
         securityContext:
@@ -611,9 +660,9 @@ spec:
         resources:
           requests:
             cpu: 100m
-            memory: 1Gi
+            memory: 2Gi
           limits:
-            memory: 1Gi
+            memory: 2Gi
         volumeMounts:
           - name: comicvine-secret
             mountPath: /secret
@@ -745,3 +794,22 @@ spec:
         volumeMounts:
           - name: scratch
             mountPath: /scratch
+
+    # onExit handler. Deletes scratch PVC only on workflow success;
+    # failures leave it for resubmit.
+    - name: cleanup
+      dag:
+        tasks:
+          - name: delete-pvc
+            template: delete-scratch-pvc
+            when: "{{workflow.status}} == Succeeded"
+
+    - name: delete-scratch-pvc
+      resource:
+        action: delete
+        manifest: |
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: humble-bundle-{{workflow.parameters.bundle_key}}
+            namespace: books

@@ -11,12 +11,12 @@ rules:
   - apiGroups: ["argoproj.io"]
     resources: ["workflowtaskresults"]
     verbs: ["create", "patch"]
-  # Required by resource templates (create-scratch-pvc / delete-scratch-pvc)
-  # in process-humble. Argo executes the resource action as this SA, so the
-  # SA must be able to create/delete PVCs in this namespace.
-  # create/delete for resource-template PVC lifecycle in process-humble.
-  # list/watch required because `kubectl delete --ignore-not-found` (used by
-  # Argo's resource.action=delete) internally runs a watch on the resource.
+  # cleanup cron lists live workflows to compute the bundle_keys to preserve.
+  - apiGroups: ["argoproj.io"]
+    resources: ["workflows"]
+    verbs: ["get", "list"]
+  # process-humble's ensure-scratch-pvc (SSA → patch) and cleanup (delete).
+  # list/watch required by kubectl's --ignore-not-found under the hood.
   - apiGroups: [""]
     resources: ["persistentvolumeclaims"]
-    verbs: ["create", "delete", "get", "list", "watch"]
+    verbs: ["create", "delete", "get", "list", "patch", "watch"]
