@@ -269,11 +269,13 @@ spec:
       resource:
         action: apply
         setOwnerReference: false
+        # Name lowercased for RFC 1123. Label keeps original casing so
+        # cleanup-cron's label filter still matches.
         manifest: |
           apiVersion: v1
           kind: PersistentVolumeClaim
           metadata:
-            name: humble-bundle-{{inputs.parameters.bundle_key}}
+            name: humble-bundle-{{=sprig.lower(inputs.parameters.bundle_key)}}
             namespace: books
             labels:
               app.kubernetes.io/name: process-humble
@@ -811,5 +813,5 @@ spec:
           apiVersion: v1
           kind: PersistentVolumeClaim
           metadata:
-            name: humble-bundle-{{workflow.parameters.bundle_key}}
+            name: humble-bundle-{{=sprig.lower(workflow.parameters.bundle_key)}}
             namespace: books
