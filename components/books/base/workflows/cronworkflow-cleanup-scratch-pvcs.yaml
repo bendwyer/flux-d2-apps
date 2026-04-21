@@ -1,0 +1,99 @@
+---
+# Safety-net sweeper for orphan humble-bundle-* scratch PVCs. onExit in
+# process-humble handles the success path; this catches workflows that
+# were deleted before onExit could fire, or onExit errors themselves.
+# Never touches PVCs younger than min_age_hours or tied to a live workflow.
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: cleanup-humble-scratch-pvcs
+  namespace: books
+spec:
+  schedules:
+    - "30 4 * * *"
+  timezone: UTC
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  workflowSpec:
+    serviceAccountName: argo-workflow
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      seccompProfile:
+        type: RuntimeDefault
+    ttlStrategy:
+      secondsAfterSuccess: 900
+      secondsAfterFailure: 14400
+    entrypoint: sweep
+    arguments:
+      parameters:
+        - name: min_age_hours
+          value: "24"
+    templates:
+      - name: sweep
+        inputs:
+          parameters:
+            - name: min_age_hours
+        container:
+          image: docker.io/alpine/k8s:1.31.0
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -eu
+              age_threshold=$(( {{inputs.parameters.min_age_hours}} * 3600 ))
+              now=$(date -u +%s)
+
+              kubectl get workflow -n books -o json \
+                | jq -r '.items[]
+                         | select(.status.phase == null
+                                  or (.status.phase | IN("Pending","Running")))
+                         | .spec.arguments.parameters[]?
+                         | select(.name == "bundle_key") | .value' \
+                | sort -u > /tmp/live_keys.txt
+              echo "live bundle_keys:"; cat /tmp/live_keys.txt || echo "  (none)"
+              echo "---"
+
+              # fromdateiso8601 parses RFC3339 → epoch portably across
+              # busybox/GNU date variants.
+              kubectl get pvc -n books \
+                -l app.kubernetes.io/name=process-humble \
+                -o json \
+                | jq -r '.items[] |
+                    [.metadata.name,
+                     (.metadata.creationTimestamp | fromdateiso8601 | tostring),
+                     (.metadata.labels["books.bendwyer.net/bundle-key"] // "")
+                    ] | @tsv' \
+                | while IFS="$(printf '\t')" read -r pvc_name created_ts bundle_key; do
+                    age=$(( now - created_ts ))
+                    if [ "$age" -lt "$age_threshold" ]; then
+                      echo "keep    $pvc_name  age=${age}s"
+                      continue
+                    fi
+                    if [ -n "$bundle_key" ] && grep -Fxq -- "$bundle_key" /tmp/live_keys.txt; then
+                      echo "keep    $pvc_name  live workflow bundle_key=$bundle_key"
+                      continue
+                    fi
+                    echo "DELETE  $pvc_name  age=${age}s bundle_key=${bundle_key:-<missing>}"
+                    kubectl delete pvc -n books "$pvc_name" --wait=false
+                  done
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+        volumes:
+          - name: tmp
+            emptyDir: {}

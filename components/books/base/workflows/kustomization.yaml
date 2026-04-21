@@ -19,4 +19,5 @@ resources:
   #              (otherwise first run re-downloads the entire Kobo library).
   # - cronworkflow-gutenberg.yaml
   # - cronworkflow-kobo.yaml
+  - cronworkflow-cleanup-scratch-pvcs.yaml
   - prometheusrule-argo-workflows.yaml
