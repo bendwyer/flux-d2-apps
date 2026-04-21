@@ -42,11 +42,13 @@ spec:
           because format names like "pdf (hq)" contain spaces.
         value: "pdf|pdf (hq)|epub|epub (hq)"
   # bundle_name and scratch_size are auto-derived by the `resolve` task at
-  # runtime. bundle_name comes from parsing humble-cli list for the given
-  # bundle_key; scratch_size is the bundle's total-of-all-formats size × 1.5
-  # rounded up to GiB, minimum 2Gi. This is conservative (over-provisions
-  # scratch when `formats` narrows the download) but longhorn-scratch is
-  # single-replica so the over-allocation is cheap.
+  # runtime. bundle_name comes from sync (detected post-download because
+  # humble-cli sanitizes some chars in the dir slug); scratch_size is the
+  # bundle's total-of-all-formats size × 3 rounded up to GiB, minimum 4Gi.
+  # The 3x covers source + converted output co-resident during conversion
+  # (kcc writes CBZs alongside source PDFs for comics/manga). Conservative
+  # for narrow `formats` overrides, but longhorn-scratch is single-replica
+  # so the over-allocation is cheap.
   # Scratch PVC is created dynamically via the `resource` template action
   # (see `create-scratch-pvc`) so the size can be parameterized.
   # volumeClaimTemplates does NOT support parameter substitution on the
@@ -200,8 +202,13 @@ spec:
             name=$(printf '%s' "$row" | cut -f2)
             size=$(printf '%s' "$row" | cut -f3)
 
-            # Convert size (e.g. "45.9 GiB" / "112.1 MiB") to GiB × 1.5,
-            # rounded up, minimum 2Gi.
+            # Convert size (e.g. "45.9 GiB" / "112.1 MiB") to scratch GiB.
+            # Multiplier covers source + converted output co-resident on
+            # scratch during conversion. kcc writes CBZs alongside source
+            # PDFs for comics/manga lanes; the ebook lane doesn't need the
+            # extra headroom but uses the same multiplier for uniformity.
+            # 3x chosen after Massive-Verse (8.3 GiB source) exhausted a
+            # prior 1.5x allocation mid-conversion. Floor 4Gi.
             unit=$(printf '%s' "$size" | awk '{print $2}')
             value=$(printf '%s' "$size" | awk '{print $1}')
             case "$unit" in
@@ -211,9 +218,9 @@ spec:
               *)      echo "ERROR: unknown size unit: $unit"; exit 1 ;;
             esac
             scratch_gi=$(awk -v m="$mib" 'BEGIN{
-              need_mib = m * 1.5
+              need_mib = m * 3
               g = int((need_mib + 1023) / 1024)
-              if (g < 2) g = 2
+              if (g < 4) g = 4
               print g
             }')
 
