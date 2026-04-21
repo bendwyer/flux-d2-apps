@@ -611,9 +611,9 @@ spec:
         resources:
           requests:
             cpu: 100m
-            memory: 256Mi
+            memory: 1Gi
           limits:
-            memory: 512Mi
+            memory: 1Gi
         volumeMounts:
           - name: comicvine-secret
             mountPath: /secret
