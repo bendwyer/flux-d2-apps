@@ -39,7 +39,7 @@ spec:
           parameters:
             - name: min_age_hours
         container:
-          image: docker.io/alpine/k8s:1.31.13
+          image: docker.io/alpine/k8s:1.35.4
           command: ["sh", "-c"]
           args:
             - |
