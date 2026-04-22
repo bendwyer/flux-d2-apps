@@ -39,9 +39,6 @@ spec:
     parameters:
       - name: bundle_key
         description: Humble bundle URL key (from `humble-cli list` KEY column).
-      - name: lane
-        description: "Destination lane: manga, comics, or ebook."
-        enum: ["manga", "comics", "ebook"]
       - name: formats
         description: |
           Pipe-separated list of humble-cli format names to download.
@@ -74,7 +71,6 @@ spec:
       inputs:
         parameters:
           - name: bundle_key
-          - name: lane
           - name: formats
       dag:
         tasks:
@@ -104,10 +100,20 @@ spec:
                   value: "{{inputs.parameters.formats}}"
                 - name: pvc_name
                   value: "{{tasks.ensure-scratch-pvc.outputs.parameters.pvc_name}}"
-          - name: convert-manga
+          - name: classify-items
             dependencies: [sync]
+            template: classify-items
+            arguments:
+              parameters:
+                - name: bundle_name
+                  value: "{{tasks.sync.outputs.parameters.bundle_name}}"
+                - name: bundle_title
+                  value: "{{tasks.resolve.outputs.parameters.bundle_title}}"
+                - name: pvc_name
+                  value: "{{tasks.ensure-scratch-pvc.outputs.parameters.pvc_name}}"
+          - name: convert-manga
+            dependencies: [classify-items]
             template: convert-manga
-            when: "'{{inputs.parameters.lane}}' == 'manga'"
             arguments:
               parameters:
                 - name: bundle_name
@@ -115,9 +121,8 @@ spec:
                 - name: pvc_name
                   value: "{{tasks.ensure-scratch-pvc.outputs.parameters.pvc_name}}"
           - name: convert-comics
-            dependencies: [sync]
+            dependencies: [classify-items]
             template: convert-comics
-            when: "'{{inputs.parameters.lane}}' == 'comics'"
             arguments:
               parameters:
                 - name: bundle_name
@@ -127,7 +132,6 @@ spec:
           - name: metadata-manga
             dependencies: [convert-manga]
             template: metadata-manga
-            when: "'{{inputs.parameters.lane}}' == 'manga'"
             arguments:
               parameters:
                 - name: pvc_name
@@ -135,15 +139,13 @@ spec:
           - name: metadata-comics
             dependencies: [convert-comics]
             template: metadata-comics
-            when: "'{{inputs.parameters.lane}}' == 'comics'"
             arguments:
               parameters:
                 - name: pvc_name
                   value: "{{tasks.ensure-scratch-pvc.outputs.parameters.pvc_name}}"
           - name: metadata-ebook
-            dependencies: [sync]
+            dependencies: [classify-items]
             template: metadata-ebook
-            when: "'{{inputs.parameters.lane}}' == 'ebook'"
             arguments:
               parameters:
                 - name: bundle_name
@@ -160,9 +162,10 @@ spec:
                 - name: pvc_name
                   value: "{{tasks.ensure-scratch-pvc.outputs.parameters.pvc_name}}"
 
-    # resolve: look up the bundle in `humble-cli list` by its key; emit
-    # bundle_name (dir slug) and scratch_size as output parameters for
-    # downstream tasks. No scratch PVC yet — runs on /tmp only.
+    # resolve: fetch bundle details and emit bundle_title + scratch_size.
+    # bundle_title drives classify-items (the lane classifier); scratch_size
+    # is the requested PVC size (bundle total × 3, min 4Gi). No scratch
+    # mounted yet — runs on /tmp only.
     - name: resolve
       inputs:
         parameters:
@@ -176,39 +179,28 @@ spec:
             umask 022
             export HOME=/tmp
             humble-cli auth "$(cat /secret/credential)"
-            humble-cli list > /tmp/all.txt
+            humble-cli details "{{inputs.parameters.bundle_key}}" > /tmp/details.txt
 
-            # humble-cli list table uses box-drawing "│" as column separator.
-            # Columns: KEY, NAME, SIZE, CLAIMED. Find the row matching bundle_key
-            # and extract name + size.
-            row=$(awk -F'│' -v k="{{inputs.parameters.bundle_key}}" '{
-              gsub(/^ +| +$/, "", $2)
-              if ($2 == k) {
-                for (i = 2; i <= NF; i++) {
-                  gsub(/^ +| +$/, "", $i)
-                  printf "%s\t", $i
-                }
-                print ""
-              }
-            }' /tmp/all.txt)
-
-            if [ -z "$row" ]; then
-              echo "ERROR: bundle not found: {{inputs.parameters.bundle_key}}"
-              echo "---"
-              head -5 /tmp/all.txt
+            # First line starting with "Humble ... Bundle" is the full title,
+            # which is what the classifier expects.
+            title=$(grep -m1 -E '^Humble .*Bundle' /tmp/details.txt || true)
+            if [ -z "$title" ]; then
+              echo "ERROR: could not extract bundle title from details"
+              head -10 /tmp/details.txt
               exit 1
             fi
 
-            name=$(printf '%s' "$row" | cut -f2)
-            size=$(printf '%s' "$row" | cut -f3)
+            # "Total size   : X GiB" — strip everything up to and including the colon.
+            size_line=$(grep -m1 -E '^Total size' /tmp/details.txt || true)
+            if [ -z "$size_line" ]; then
+              echo "ERROR: could not extract total size"; exit 1
+            fi
+            size=$(printf '%s' "$size_line" | sed -E 's/.*:[[:space:]]*//')
 
             # Convert size (e.g. "45.9 GiB" / "112.1 MiB") to scratch GiB.
-            # Multiplier covers source + converted output co-resident on
-            # scratch during conversion. kcc writes CBZs alongside source
-            # PDFs for comics/manga lanes; the ebook lane doesn't need the
-            # extra headroom but uses the same multiplier for uniformity.
-            # 3x chosen after Massive-Verse (8.3 GiB source) exhausted a
-            # prior 1.5x allocation mid-conversion. Floor 4Gi.
+            # 3x multiplier covers source + converted output co-resident
+            # on scratch during kcc. Chosen after Massive-Verse (8.3 GiB)
+            # exhausted a prior 1.5x allocation mid-conversion. Floor 4Gi.
             unit=$(printf '%s' "$size" | awk '{print $2}')
             value=$(printf '%s' "$size" | awk '{print $1}')
             case "$unit" in
@@ -225,14 +217,12 @@ spec:
             }')
 
             echo "resolved:"
-            echo "  bundle_name (from list): $name"
+            echo "  bundle_title: $title"
             echo "  bundle_size: $size"
             echo "  scratch_size: ${scratch_gi}Gi"
-            echo "  (actual on-disk bundle_name will be emitted by sync"
-            echo "   after bulk-download; humble-cli sanitizes some chars"
-            echo "   like ':' in the real dir slug)"
 
             printf '%s' "${scratch_gi}Gi" > /tmp/scratch_size.txt
+            printf '%s' "$title" > /tmp/bundle_title.txt
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
@@ -255,6 +245,9 @@ spec:
           - name: scratch_size
             valueFrom:
               path: /tmp/scratch_size.txt
+          - name: bundle_title
+            valueFrom:
+              path: /tmp/bundle_title.txt
 
     # Idempotent create-or-noop via SSA. Deterministic name lets a resubmit
     # reuse the PVC across workflow invocations. No ownerReference —
@@ -382,6 +375,46 @@ spec:
             valueFrom:
               path: /tmp/bundle_name.txt
 
+    # Writes lane manifests to /scratch/classified/{comics,manga,ebook}.txt.
+    # Downstream convert-* and metadata-ebook steps filter by their lane's
+    # manifest; empty manifests are no-ops. See containers/images/humble-sorter.
+    - name: classify-items
+      inputs:
+        parameters:
+          - name: bundle_name
+          - name: bundle_title
+          - name: pvc_name
+      volumes:
+        - name: scratch
+          persistentVolumeClaim:
+            claimName: "{{inputs.parameters.pvc_name}}"
+      container:
+        image: ghcr.io/bendwyer/containers/humble-sorter:1.0.0
+        command: ["python", "-B", "/app/humble_sorter.py"]
+        args:
+          - --bundle-dir
+          - "/scratch/sources/humble-bundle/{{inputs.parameters.bundle_name}}"
+          - --bundle-title
+          - "{{inputs.parameters.bundle_title}}"
+          - --output-dir
+          - /scratch/classified
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            memory: 128Mi
+        volumeMounts:
+          - name: scratch
+            mountPath: /scratch
+          - name: tmp
+            mountPath: /tmp
+
     - name: convert-manga
       inputs:
         parameters:
@@ -400,10 +433,17 @@ spec:
         args:
           - |
             umask 022
-            find "/scratch/sources/humble-bundle/$BUNDLE_NAME" -name '*.pdf' | head -1 | grep -q . || { echo "No .pdf files to process"; exit 0; }
+            MANIFEST=/scratch/classified/manga.txt
+            if [ ! -s "$MANIFEST" ]; then
+              echo "No manga items in this bundle"; exit 0
+            fi
             mkdir -p /scratch/incoming/manga
-            find "/scratch/sources/humble-bundle/$BUNDLE_NAME" -name '*.pdf' | while read -r pdf; do
-              parent_name=$(basename "$(dirname "$pdf")")
+            BUNDLE_DIR="/scratch/sources/humble-bundle/$BUNDLE_NAME"
+            TAB=$(printf '\t')
+            while IFS="$TAB" read -r rel fmt; do
+              [ -z "$rel" ] && continue
+              src="$BUNDLE_DIR/$rel"
+              parent_name=$(basename "$(dirname "$src")")
               output_name=$(printf '%s' "$parent_name" | sed -E '
                 s/  +.*$//
                 s/ (Volume|Vol) ?\.? ?([0-9]+)$/ \2/
@@ -417,11 +457,17 @@ spec:
                 echo "Skipping (already processed): ${output_name}.cbz"
                 continue
               fi
-              echo "Converting: $pdf -> ${output_name}.cbz"
-              pdf_basename=$(basename "$pdf" .pdf)
-              c2e -n -f CBZ -o /scratch/incoming/manga "$pdf" && \
-              mv "/scratch/incoming/manga/${pdf_basename}.cbz" "/scratch/incoming/manga/${output_name}.cbz"
-            done
+              if [ "$fmt" = "cbz" ]; then
+                echo "Copying (already CBZ): $src -> ${output_name}.cbz"
+                cp "$src" "/scratch/incoming/manga/${output_name}.cbz"
+              else
+                echo "Converting ($fmt): $src -> ${output_name}.cbz"
+                src_basename=$(basename "$src")
+                src_stem="${src_basename%.*}"
+                c2e -n -f CBZ -o /scratch/incoming/manga "$src" && \
+                mv "/scratch/incoming/manga/${src_stem}.cbz" "/scratch/incoming/manga/${output_name}.cbz"
+              fi
+            done < "$MANIFEST"
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
@@ -457,15 +503,19 @@ spec:
         args:
           - |
             umask 022
-            find "/scratch/sources/humble-bundle/$BUNDLE_NAME" -name '*.pdf' | head -1 | grep -q . || { echo "No .pdf files to process"; exit 0; }
+            MANIFEST=/scratch/classified/comics.txt
+            if [ ! -s "$MANIFEST" ]; then
+              echo "No comics items in this bundle"; exit 0
+            fi
             mkdir -p /scratch/incoming/comics
-            find "/scratch/sources/humble-bundle/$BUNDLE_NAME" -name '*.pdf' | while read -r pdf; do
-              if ls "$(dirname "$pdf")"/*HQ*.pdf >/dev/null 2>&1 && \
-                 ! echo "$(basename "$pdf")" | grep -qi 'HQ'; then
-                echo "Skipping non-HQ: $pdf (HQ version available)"
-                continue
-              fi
-              parent_name=$(basename "$(dirname "$pdf")")
+            BUNDLE_DIR="/scratch/sources/humble-bundle/$BUNDLE_NAME"
+            # Manifest lines: "<relative_path>\t<format>". Format is one
+            # of {pdf,cbz,epub,mobi}; cbz short-circuits kcc.
+            TAB=$(printf '\t')
+            while IFS="$TAB" read -r rel fmt; do
+              [ -z "$rel" ] && continue
+              src="$BUNDLE_DIR/$rel"
+              parent_name=$(basename "$(dirname "$src")")
               if echo "$parent_name" | grep -qE ' (Vol|Volume) ?\.? ?[0-9]+  '; then
                 output_name=$(printf '%s' "$parent_name" | sed -E '
                   s/  +.*$//
@@ -488,11 +538,17 @@ spec:
                 echo "Skipping (already processed): ${output_name}.cbz"
                 continue
               fi
-              echo "Converting: $pdf -> ${output_name}.cbz"
-              pdf_basename=$(basename "$pdf" .pdf)
-              c2e -n -f CBZ -o /scratch/incoming/comics "$pdf" && \
-              mv "/scratch/incoming/comics/${pdf_basename}.cbz" "/scratch/incoming/comics/${output_name}.cbz"
-            done
+              if [ "$fmt" = "cbz" ]; then
+                echo "Copying (already CBZ): $src -> ${output_name}.cbz"
+                cp "$src" "/scratch/incoming/comics/${output_name}.cbz"
+              else
+                echo "Converting ($fmt): $src -> ${output_name}.cbz"
+                src_basename=$(basename "$src")
+                src_stem="${src_basename%.*}"
+                c2e -n -f CBZ -o /scratch/incoming/comics "$src" && \
+                mv "/scratch/incoming/comics/${src_stem}.cbz" "/scratch/incoming/comics/${output_name}.cbz"
+              fi
+            done < "$MANIFEST"
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
@@ -678,6 +734,14 @@ spec:
           - name: library
             mountPath: /books
 
+    # Edge-case lane for rare `Humble Book Bundle` prose-only bundles.
+    # Most humble bundles classify all-items to comics/manga; this is a
+    # no-op in those cases.
+    # Known limitation: ebook-metadata has no per-file filter; it processes
+    # every PDF in the input dir. Safe only if the bundle is all-ebook
+    # (which the classifier enforces via the Humble-Book-Bundle prefix check
+    # plus the 50 MiB size veto). A hypothetical mixed-ebook-and-comics
+    # bundle would mis-process — revisit if one ever appears.
     - name: metadata-ebook
       inputs:
         parameters:
@@ -689,18 +753,20 @@ spec:
             claimName: "{{inputs.parameters.pvc_name}}"
       container:
         image: ghcr.io/bendwyer/containers/ebook-metadata:2.0.2
+        command: ["sh", "-c"]
         env:
           - name: BUNDLE_NAME
             value: "{{inputs.parameters.bundle_name}}"
         args:
-          - --input-dir
-          - /scratch/sources/humble-bundle/$(BUNDLE_NAME)
-          - --output-dir
-          - /books/library/ebooks
-          - --marker-dir
-          - /scratch/markers/humble-ebook
-          - --provider
-          - goodreads
+          - |
+            if [ ! -s /scratch/classified/ebook.txt ]; then
+              echo "No ebook items in this bundle"; exit 0
+            fi
+            exec python3 /app/ebook_metadata.py \
+              --input-dir "/scratch/sources/humble-bundle/$BUNDLE_NAME" \
+              --output-dir /books/library/ebooks \
+              --marker-dir /scratch/markers/humble-ebook \
+              --provider goodreads
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
