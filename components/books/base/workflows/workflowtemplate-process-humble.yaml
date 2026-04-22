@@ -776,10 +776,13 @@ spec:
             # --s3-no-check-bucket: skip HeadBucket/CreateBucket pre-check.
             # Our IAM policy lacks s3:CreateBucket (by design); without this
             # flag rclone hangs in silent retry. See reference_ovh_s3_lifecycle.
+            # --stats-one-line uses CR to rewrite in-place; K8s log capture is
+            # LF-buffered so mid-transfer stats never appear. Multi-line stats
+            # (without the flag) flush cleanly every --stats interval.
             rclone copy "$bundle_dir" "$dest" \
               --s3-no-check-bucket \
               --s3-storage-class=STANDARD_IA \
-              --stats-one-line --stats=30s --transfers=4
+              --stats=30s --transfers=4
             rclone check "$bundle_dir" "$dest" --one-way
             echo "archived bundle: $BUNDLE_NAME"
         securityContext:
@@ -807,8 +810,11 @@ spec:
             when: "{{workflow.status}} == Succeeded"
 
     - name: delete-scratch-pvc
+      # --wait=false breaks the pvc-protection ↔ podGC=OnWorkflowSuccess deadlock;
+      # the finalizer clears after podGC reaps the workflow pods post-success.
       resource:
         action: delete
+        flags: ["--wait=false"]
         manifest: |
           apiVersion: v1
           kind: PersistentVolumeClaim
