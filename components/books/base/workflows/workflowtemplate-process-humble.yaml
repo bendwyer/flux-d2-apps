@@ -581,7 +581,8 @@ spec:
           - |
             umask 022
             ls /scratch/incoming/manga/*.cbz >/dev/null 2>&1 || { echo "No .cbz files to process"; exit 0; }
-            # .done marker on terminal outcomes; see metadata-comics.
+            # Every per-file path is terminal: library move OR dead-letter
+            # to _unmatched/, then .done. See metadata-comics.
             for f in /scratch/incoming/manga/*.cbz; do
               echo "Processing: $f"
               base=$(basename "$f")
@@ -602,7 +603,13 @@ spec:
                   "$f"; then
                   touch "/scratch/incoming/manga/${base}.done"
                 else
-                  echo "Warning: Tagged but failed to rename: $f"
+                  echo "Dead-letter (tagged but rename failed): $f"
+                  mkdir -p /books/incoming/manga/_unmatched
+                  if mv "$f" /books/incoming/manga/_unmatched/; then
+                    touch "/scratch/incoming/manga/${base}.done"
+                  else
+                    echo "Warning: failed to move to _unmatched: $f"
+                  fi
                 fi
               else
                 echo "MangaBaka miss, trying ComicVine fallback: $f"
@@ -623,7 +630,13 @@ spec:
                     "$f"; then
                     touch "/scratch/incoming/manga/${base}.done"
                   else
-                    echo "Warning: Tagged but failed to rename: $f"
+                    echo "Dead-letter (tagged but rename failed): $f"
+                    mkdir -p /books/incoming/manga/_unmatched
+                    if mv "$f" /books/incoming/manga/_unmatched/; then
+                      touch "/scratch/incoming/manga/${base}.done"
+                    else
+                      echo "Warning: failed to move to _unmatched: $f"
+                    fi
                   fi
                 else
                   echo "Dead-letter (no match in either source): $f"
@@ -675,9 +688,10 @@ spec:
           - |
             umask 022
             ls /scratch/incoming/comics/*.cbz >/dev/null 2>&1 || { echo "No .cbz files to process"; exit 0; }
-            # .done marker written on terminal outcomes only (library-moved
-            # or dead-lettered). Skipped on "tagged but rename failed" so
-            # that case retries on resubmit.
+            # Every per-file path ends with either a library move or a
+            # dead-letter to _unmatched/ (no match, or matched-but-rename-
+            # failed), then writes .done. Nothing is left on scratch for
+            # the PVC GC to silently destroy.
             for f in /scratch/incoming/comics/*.cbz; do
               echo "Processing: $f"
               base=$(basename "$f")
@@ -698,7 +712,13 @@ spec:
                   "$f"; then
                   touch "/scratch/incoming/comics/${base}.done"
                 else
-                  echo "Warning: Tagged but failed to rename: $f"
+                  echo "Dead-letter (tagged but rename failed): $f"
+                  mkdir -p /books/incoming/comics/_unmatched
+                  if mv "$f" /books/incoming/comics/_unmatched/; then
+                    touch "/scratch/incoming/comics/${base}.done"
+                  else
+                    echo "Warning: failed to move to _unmatched: $f"
+                  fi
                 fi
               else
                 echo "Dead-letter (no ComicVine match): $f"
