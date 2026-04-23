@@ -41,12 +41,12 @@ spec:
         description: Humble bundle URL key (from `humble-cli list` KEY column).
       - name: formats
         description: |
-          Pipe-separated list of humble-cli format names to download.
-          Default covers pdf+epub for all scenarios. Override for bundles
-          where you want a specific format (e.g. "cbz" for smaller comics,
-          "epub|epub (hq)" for ebook-only). Pipe separator is required
-          because format names like "pdf (hq)" contain spaces.
-        value: "pdf|pdf (hq)|epub|epub (hq)"
+          Pipe-separated humble-cli format names to download. Defines the
+          candidate pool humble-sorter picks from (largest wins). Default
+          covers all formats we can process; override to constrain (e.g.
+          "cbz" to skip PDF bandwidth when the sorter should always pick
+          CBZ). Pipe separator because names like "pdf (hq)" contain spaces.
+        value: "pdf|pdf (hq)|cbz|epub|epub (hq)"
   # bundle_name and scratch_size are derived at runtime by `resolve`.
   # scratch_size = bundle total × 3 rounded to GiB, min 4Gi (covers source +
   # converted output co-resident during kcc).
