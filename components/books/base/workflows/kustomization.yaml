@@ -7,6 +7,8 @@ resources:
   - role-argo-workflow.yaml
   - rolebinding-argo-workflow.yaml
   - configmap-workflow-semaphore.yaml
+  - onepassworditem-anthropic-agent.yaml
+  - onepassworditem-kavita-agent.yaml
   - onepassworditem-ovh-archive.yaml
   - workflowtemplate-process-gutenberg.yaml
   - workflowtemplate-process-kobo.yaml
