@@ -214,7 +214,12 @@ spec:
           - name: scratch
             mountPath: /scratch
 
+    # Templates mounting the RWO scratch PVC share `scratch-pvc` mutex so
+    # parallel siblings don't deadlock racing for the volume on different nodes.
     - name: convert-manga
+      synchronization:
+        mutexes:
+          - name: scratch-pvc
       container:
         image: ghcr.io/bendwyer/containers/epub2cbz:2.1@sha256:12ab217483477daddd0f102ed40683b4dfe701936b2e383518a0080cf4b8dbfe
         command: ["python3", "/app/epub2cbz.py"]
@@ -245,6 +250,9 @@ spec:
             mountPath: /scratch
 
     - name: metadata-ebook
+      synchronization:
+        mutexes:
+          - name: scratch-pvc
       container:
         image: ghcr.io/bendwyer/containers/ebook-metadata:2.0.2
         args:
@@ -287,6 +295,9 @@ spec:
     # indexes less reliably). apply.py routes the comictagger save call to
     # the right --source based on each decision's recorded source.
     - name: metadata-manga
+      synchronization:
+        mutexes:
+          - name: scratch-pvc
       container:
         image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.4@sha256:c8ca5560617f7b8e72771cbd80c647196fe961530b51968ea6211314010db968
         command: ["sh", "-c"]
