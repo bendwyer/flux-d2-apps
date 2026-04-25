@@ -3,19 +3,6 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  # CronJobs below were replaced by Argo Workflows (pipeline lives in
-  # ./workflows, wired in via a follow-up commit). Kept on disk (not deleted)
-  # during stabilization — re-enable any entry below to roll back an
-  # individual lane without touching git history.
-  # - cronjob-convert-comics-humble.yaml
-  # - cronjob-convert-manga-humble.yaml
-  # - cronjob-convert-manga-kobo.yaml
-  # - cronjob-metadata-comics.yaml
-  # - cronjob-metadata-ebook-gutenberg.yaml
-  # - cronjob-metadata-ebook-kobo.yaml
-  # - cronjob-metadata-manga.yaml
-  # - cronjob-sync-humble.yaml
-  # - cronjob-sync-kobo.yaml
   - workflows
   - helmrelease-filebrowser.yaml
   - helmrelease-kavita.yaml
