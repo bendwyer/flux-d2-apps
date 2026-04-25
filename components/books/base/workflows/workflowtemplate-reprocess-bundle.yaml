@@ -1,0 +1,306 @@
+---
+# Re-runs agent + apply against an already-shelved bundle without
+# re-downloading source PDFs. Use when prompt rules or planner logic have
+# improved and we want to bring an existing bundle's metadata in line with
+# the current pipeline.
+#
+# Trigger from Argo UI (or via `argo submit --from workflowtemplate/...`)
+# with the source_id + lane + source_title that match the bundle's existing
+# applied log. Per-source-id; one invocation reprocesses one bundle.
+#
+# Disk-isolation pattern (mirrors process-humble): a dedicated scratch PVC
+# holds the staged copies during the run. Sized 1.5× the bundle's total
+# CBZ size, min 4Gi. On workflow success, the cleanup template deletes
+# the scratch PVC. Library originals are untouched until apply.py has
+# successfully shelved the new versions; if reprocess crashes, library
+# state is unaffected and the orphan PVC is GC'd by cleanup-cron.
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: reprocess-bundle
+  namespace: books
+spec:
+  serviceAccountName: argo-workflow
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  entrypoint: main
+  onExit: cleanup
+  ttlStrategy:
+    secondsAfterSuccess: 900
+    secondsAfterFailure: 14400
+    secondsAfterCompletion: 86400
+  synchronization:
+    semaphores:
+      - configMapKeyRef:
+          name: books-workflow-semaphore
+          key: processing
+    # Same-source serialization. Concurrent reprocess of the same
+    # source_id would race on staging dir + decision log.
+    mutexes:
+      - name: "reprocess-{{workflow.parameters.source_id}}"
+  arguments:
+    parameters:
+      - name: source_id
+        description: Existing source_id with an applied log to reprocess.
+      - name: lane
+        description: comics or manga.
+      - name: source_title
+        description: Human-readable source title (rebuilds source.json).
+      - name: inferred_publisher
+        description: Optional publisher hint for the agent.
+        value: ""
+      - name: inferred_year_range
+        description: Optional 'YYYY,YYYY' range hint for the agent.
+        value: ""
+  volumes:
+    - name: library
+      persistentVolumeClaim:
+        claimName: library-shared-pvc
+    - name: tmp
+      emptyDir: {}
+    - name: comicvine-secret
+      secret:
+        secretName: comicvine-credentials
+    - name: kavita-secret
+      secret:
+        secretName: kavita-agent-api-key
+    - name: anthropic-secret
+      secret:
+        secretName: anthropic-agent-api-key
+  templates:
+    - name: main
+      dag:
+        tasks:
+          - name: resolve-size
+            template: resolve-size
+            arguments:
+              parameters:
+                - name: source_id
+                  value: "{{workflow.parameters.source_id}}"
+                - name: lane
+                  value: "{{workflow.parameters.lane}}"
+          - name: ensure-scratch-pvc
+            dependencies: [resolve-size]
+            template: ensure-scratch-pvc
+            arguments:
+              parameters:
+                - name: source_id
+                  value: "{{workflow.parameters.source_id}}"
+                - name: scratch_size
+                  value: "{{tasks.resolve-size.outputs.parameters.scratch_size}}"
+          - name: reprocess
+            dependencies: [ensure-scratch-pvc]
+            template: reprocess
+            arguments:
+              parameters:
+                - name: source_id
+                  value: "{{workflow.parameters.source_id}}"
+                - name: lane
+                  value: "{{workflow.parameters.lane}}"
+                - name: source_title
+                  value: "{{workflow.parameters.source_title}}"
+                - name: inferred_publisher
+                  value: "{{workflow.parameters.inferred_publisher}}"
+                - name: inferred_year_range
+                  value: "{{workflow.parameters.inferred_year_range}}"
+                - name: pvc_name
+                  value: "{{tasks.ensure-scratch-pvc.outputs.parameters.pvc_name}}"
+
+    # resolve-size: walk the applied log, sum the staged CBZ sizes, output
+    # a scratch_size hint. Mounts library read-only — no scratch PVC yet.
+    # The size formula is (sum × 1.5) rounded up to the nearest GiB, min 4Gi.
+    - name: resolve-size
+      inputs:
+        parameters:
+          - name: source_id
+          - name: lane
+      container:
+        image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.1@sha256:23af0531c74c98fe3d8e461985be1c28c652490b2e4e0be0275ae735d2399edc
+        command: ["sh", "-c"]
+        env:
+          - name: HOME
+            value: /tmp
+        args:
+          - |
+            set -eu
+            python -B -c '
+            import json, math, sys
+            from pathlib import Path
+            applied = Path("/books/library/.agent-decisions/{{inputs.parameters.lane}}/{{inputs.parameters.source_id}}.applied.jsonl")
+            if not applied.is_file():
+                sys.stderr.write(f"ERROR: applied log not found: {applied}\n")
+                sys.exit(2)
+            total = 0
+            seen = 0
+            for line in applied.read_text().splitlines():
+                if not line.strip():
+                    continue
+                rec = json.loads(line)
+                dest = Path(rec["destination_folder"])
+                hint = rec["filename"]
+                exact = dest / hint
+                if exact.is_file():
+                    total += exact.stat().st_size
+                    seen += 1
+                    continue
+                cands = sorted(dest.glob("*.cbz")) if dest.is_dir() else []
+                if len(cands) == 1:
+                    total += cands[0].stat().st_size
+                    seen += 1
+            gib = max(4, math.ceil(total * 1.5 / (1024**3)))
+            print(f"  applied_records: {seen}  total_bytes: {total}  scratch_size: {gib}Gi", file=sys.stderr)
+            Path("/tmp/scratch_size.txt").write_text(f"{gib}Gi")
+            '
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            memory: 128Mi
+        volumeMounts:
+          - name: library
+            mountPath: /books
+            readOnly: true
+          - name: tmp
+            mountPath: /tmp
+      outputs:
+        parameters:
+          - name: scratch_size
+            valueFrom:
+              path: /tmp/scratch_size.txt
+
+    - name: ensure-scratch-pvc
+      inputs:
+        parameters:
+          - name: source_id
+          - name: scratch_size
+      resource:
+        action: apply
+        setOwnerReference: false
+        # Name lowercased for RFC 1123. Label keeps original casing so a
+        # future reprocess-cleanup-cron's selector can match.
+        manifest: |
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: reprocess-{{=sprig.lower(inputs.parameters.source_id)}}
+            namespace: books
+            labels:
+              app.kubernetes.io/name: reprocess-bundle
+              app.kubernetes.io/managed-by: argo-workflows
+              books.bendwyer.net/source-id: "{{inputs.parameters.source_id}}"
+          spec:
+            accessModes: [ReadWriteOnce]
+            storageClassName: longhorn-scratch
+            resources:
+              requests:
+                storage: "{{inputs.parameters.scratch_size}}"
+      outputs:
+        parameters:
+          - name: pvc_name
+            valueFrom:
+              jsonPath: '{.metadata.name}'
+
+    - name: reprocess
+      inputs:
+        parameters:
+          - name: source_id
+          - name: lane
+          - name: source_title
+          - name: inferred_publisher
+          - name: inferred_year_range
+          - name: pvc_name
+      volumes:
+        - name: scratch
+          persistentVolumeClaim:
+            claimName: "{{inputs.parameters.pvc_name}}"
+      container:
+        image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.1@sha256:23af0531c74c98fe3d8e461985be1c28c652490b2e4e0be0275ae735d2399edc
+        command: ["python", "-B", "/app/reprocess.py"]
+        env:
+          - name: HOME
+            value: /tmp
+        args:
+          - --source-id
+          - "{{inputs.parameters.source_id}}"
+          - --lane
+          - "{{inputs.parameters.lane}}"
+          - --source-title
+          - "{{inputs.parameters.source_title}}"
+          - --inferred-publisher
+          - "{{inputs.parameters.inferred_publisher}}"
+          - --inferred-year-range
+          - "{{inputs.parameters.inferred_year_range}}"
+          - --staging-dir
+          - /scratch/reprocess
+          - --decision-log-dir
+          - "/books/library/.agent-decisions/{{inputs.parameters.lane}}"
+          - --kavita-url
+          - http://kavita.books.svc.cluster.local:5000
+          - --kavita-api-key-file
+          - /secret/kavita/credential
+          - --comicvine-api-key-file
+          - /secret/comicvine/credential
+          - --anthropic-credential-file
+          - /secret/anthropic/credential
+          - --model
+          - claude-sonnet-4-6
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 200m
+            memory: 1Gi
+          limits:
+            memory: 1Gi
+        volumeMounts:
+          - name: library
+            mountPath: /books
+          - name: scratch
+            mountPath: /scratch
+          - name: kavita-secret
+            mountPath: /secret/kavita
+            readOnly: true
+          - name: comicvine-secret
+            mountPath: /secret/comicvine
+            readOnly: true
+          - name: anthropic-secret
+            mountPath: /secret/anthropic
+            readOnly: true
+          - name: tmp
+            mountPath: /tmp
+
+    # onExit: only delete scratch on success. Failed runs keep the PVC for
+    # post-mortem inspection; cleanup-cron sweeps orphans by age.
+    - name: cleanup
+      dag:
+        tasks:
+          - name: delete-pvc
+            template: delete-scratch-pvc
+            when: "{{workflow.status}} == Succeeded"
+
+    - name: delete-scratch-pvc
+      # See process-humble for the --wait=false rationale (pvc-protection vs
+      # podGC deadlock).
+      resource:
+        action: delete
+        flags: ["--wait=false"]
+        manifest: |
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: reprocess-{{=sprig.lower(workflow.parameters.source_id)}}
+            namespace: books
