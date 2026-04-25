@@ -288,7 +288,7 @@ spec:
     # the right --source based on each decision's recorded source.
     - name: metadata-manga
       container:
-        image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.0
+        image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.0@sha256:25e2802358b0dd749d5073eebca381beebc01dee24207a30ebefac36f8a78875
         command: ["sh", "-c"]
         env:
           - name: HOME
