@@ -13,6 +13,5 @@ resources:
   - workflowtemplate-process-gutenberg.yaml
   - workflowtemplate-process-kobo.yaml
   - workflowtemplate-process-humble.yaml
-  - workflowtemplate-reprocess-bundle.yaml
   - cronworkflow-cleanup-scratch-pvcs.yaml
   - prometheusrule-argo-workflows.yaml
