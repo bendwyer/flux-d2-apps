@@ -66,6 +66,12 @@ spec:
     - name: comicvine-secret
       secret:
         secretName: comicvine-credentials
+    - name: kavita-secret
+      secret:
+        secretName: kavita-agent-api-key
+    - name: anthropic-secret
+      secret:
+        secretName: anthropic-agent-api-key
   templates:
     - name: main
       inputs:
@@ -134,6 +140,10 @@ spec:
             template: metadata-manga
             arguments:
               parameters:
+                - name: bundle_key
+                  value: "{{workflow.parameters.bundle_key}}"
+                - name: bundle_title
+                  value: "{{tasks.resolve.outputs.parameters.bundle_title}}"
                 - name: pvc_name
                   value: "{{tasks.ensure-scratch-pvc.outputs.parameters.pvc_name}}"
           - name: metadata-comics
@@ -141,6 +151,10 @@ spec:
             template: metadata-comics
             arguments:
               parameters:
+                - name: bundle_key
+                  value: "{{workflow.parameters.bundle_key}}"
+                - name: bundle_title
+                  value: "{{tasks.resolve.outputs.parameters.bundle_title}}"
                 - name: pvc_name
                   value: "{{tasks.ensure-scratch-pvc.outputs.parameters.pvc_name}}"
           - name: metadata-ebook
@@ -566,91 +580,72 @@ spec:
           - name: scratch
             mountPath: /scratch
 
+    # Manga lane: same agent + apply pattern as metadata-comics, just with
+    # --lane manga so the planner uses manga filename/folder conventions.
+    # Agent uses ComicVine for matching (CV has Western-published manga
+    # — Dark Horse imprints, Yen Press, VIZ etc.). MangaBaka is not used by
+    # the agent today; if a manga item isn't on CV it dead-letters and
+    # gets manual triage. MangaBaka extension is a future enhancement.
     - name: metadata-manga
       inputs:
         parameters:
+          - name: bundle_key
+          - name: bundle_title
           - name: pvc_name
       volumes:
         - name: scratch
           persistentVolumeClaim:
             claimName: "{{inputs.parameters.pvc_name}}"
       container:
-        image: ghcr.io/bendwyer/containers/comictagger:1.6@sha256:b95350b251921a224e59b7ffac9d0961f48d0142e66f8c058c386b3fdf162aa3
+        image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.0
         command: ["sh", "-c"]
+        env:
+          - name: HOME
+            value: /tmp
         args:
           - |
+            set -e
             umask 022
             ls /scratch/incoming/manga/*.cbz >/dev/null 2>&1 || { echo "No .cbz files to process"; exit 0; }
-            # Every per-file path is terminal: library move OR dead-letter
-            # to _unmatched/, then .done. See metadata-comics.
-            for f in /scratch/incoming/manga/*.cbz; do
-              echo "Processing: $f"
-              base=$(basename "$f")
-              if comictagger \
-                --no-gui \
-                -s -o -f \
-                --tags-write cr \
-                --source mangabaka \
-                --mangabaka-age-filter pornographic \
-                --mangabaka-use-series-start-as-volume \
-                --config /config \
-                "$f"; then
-                if comictagger \
-                  --no-gui \
-                  -r --tags-read cr --move \
-                  --dir /books/library/manga \
-                  --template "{series}/{series} #{issue} ({year})" \
-                  --config /config \
-                  "$f"; then
-                  touch "/scratch/incoming/manga/${base}.done"
+
+            cat > /tmp/source.json <<'EOF'
+            {
+              "source_id": "{{inputs.parameters.bundle_key}}",
+              "source_title": "{{inputs.parameters.bundle_title}}"
+            }
+            EOF
+
+            python -B /app/agent.py \
+              --unmatched-dir /scratch/incoming/manga \
+              --lane manga \
+              --source-context /tmp/source.json \
+              --decision-log-dir /books/library/.agent-decisions/manga \
+              --kavita-url http://kavita.books.svc.cluster.local:5000 \
+              --kavita-api-key-file /secret/kavita/credential \
+              --comicvine-api-key-file /secret/comicvine/credential \
+              --anthropic-credential-file /secret/anthropic/credential \
+              --model claude-sonnet-4-6
+
+            python -B /app/apply.py \
+              --source-id "{{inputs.parameters.bundle_key}}" \
+              --lane manga \
+              --unmatched-dir /scratch/incoming/manga \
+              --decision-log-dir /books/library/.agent-decisions/manga \
+              --kavita-url http://kavita.books.svc.cluster.local:5000 \
+              --kavita-api-key-file /secret/kavita/credential \
+              --comicvine-api-key-file /secret/comicvine/credential
+
+            if ls /scratch/incoming/manga/*.cbz >/dev/null 2>&1; then
+              mkdir -p /books/incoming/manga/_unmatched
+              for f in /scratch/incoming/manga/*.cbz; do
+                base=$(basename "$f")
+                if mv "$f" "/books/incoming/manga/_unmatched/$base"; then
+                  echo "Dead-lettered (agent uncertain or skipped): $base"
                 else
-                  echo "Dead-letter (tagged but rename failed): $f"
-                  mkdir -p /books/incoming/manga/_unmatched
-                  if mv "$f" /books/incoming/manga/_unmatched/; then
-                    touch "/scratch/incoming/manga/${base}.done"
-                  else
-                    echo "Warning: failed to move to _unmatched: $f"
-                  fi
+                  echo "Warning: failed to move to _unmatched: $f" >&2
                 fi
-              else
-                echo "MangaBaka miss, trying ComicVine fallback: $f"
-                if comictagger \
-                  --no-gui \
-                  -s -o -f \
-                  --tags-write cr \
-                  --source comicvine \
-                  --comicvine-key "$(cat /secret/credential)" \
-                  --cv-use-series-start-as-volume \
-                  --config /config \
-                  "$f"; then
-                  if comictagger \
-                    --no-gui \
-                    -r --tags-read cr --move \
-                    --dir /books/library/manga \
-                    --template "{series}/{series} #{issue} ({year})" \
-                    --config /config \
-                    "$f"; then
-                    touch "/scratch/incoming/manga/${base}.done"
-                  else
-                    echo "Dead-letter (tagged but rename failed): $f"
-                    mkdir -p /books/incoming/manga/_unmatched
-                    if mv "$f" /books/incoming/manga/_unmatched/; then
-                      touch "/scratch/incoming/manga/${base}.done"
-                    else
-                      echo "Warning: failed to move to _unmatched: $f"
-                    fi
-                  fi
-                else
-                  echo "Dead-letter (no match in either source): $f"
-                  mkdir -p /books/incoming/manga/_unmatched
-                  if mv "$f" /books/incoming/manga/_unmatched/; then
-                    touch "/scratch/incoming/manga/${base}.done"
-                  else
-                    echo "Warning: failed to move to _unmatched: $f"
-                  fi
-                fi
-              fi
-            done
+              done
+            fi
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
@@ -658,81 +653,97 @@ spec:
             drop: ["ALL"]
         resources:
           requests:
-            cpu: 100m
-            memory: 256Mi
+            cpu: 200m
+            memory: 1Gi
           limits:
-            memory: 512Mi
+            memory: 1Gi
         volumeMounts:
-          - name: comicvine-secret
-            mountPath: /secret
-            readOnly: true
-          - name: config
-            mountPath: /config
-          - name: tmp
-            mountPath: /tmp
           - name: scratch
             mountPath: /scratch
           - name: library
             mountPath: /books
+          - name: kavita-secret
+            mountPath: /secret/kavita
+            readOnly: true
+          - name: comicvine-secret
+            mountPath: /secret/comicvine
+            readOnly: true
+          - name: anthropic-secret
+            mountPath: /secret/anthropic
+            readOnly: true
+          - name: tmp
+            mountPath: /tmp
 
+    # Agent-decides + bundle-aware apply. The agent matches every item
+    # against ComicVine using bundle source coherence, sibling consistency,
+    # and Kavita library precedent. apply.py runs the bundle planner over
+    # the agent's decisions and writes canonical metadata via comictagger
+    # --id, then moves files into the comics library. Items the agent flags
+    # uncertain (or anything left in scratch after apply) dead-letter to
+    # /books/incoming/comics/_unmatched for review.
     - name: metadata-comics
       inputs:
         parameters:
+          - name: bundle_key
+          - name: bundle_title
           - name: pvc_name
       volumes:
         - name: scratch
           persistentVolumeClaim:
             claimName: "{{inputs.parameters.pvc_name}}"
       container:
-        image: ghcr.io/bendwyer/containers/comictagger:1.6@sha256:b95350b251921a224e59b7ffac9d0961f48d0142e66f8c058c386b3fdf162aa3
+        image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.0
         command: ["sh", "-c"]
+        env:
+          - name: HOME
+            value: /tmp
         args:
           - |
+            set -e
             umask 022
             ls /scratch/incoming/comics/*.cbz >/dev/null 2>&1 || { echo "No .cbz files to process"; exit 0; }
-            # Every per-file path ends with either a library move or a
-            # dead-letter to _unmatched/ (no match, or matched-but-rename-
-            # failed), then writes .done. Nothing is left on scratch for
-            # the PVC GC to silently destroy.
-            for f in /scratch/incoming/comics/*.cbz; do
-              echo "Processing: $f"
-              base=$(basename "$f")
-              if comictagger \
-                --no-gui \
-                -s -o -f \
-                --tags-write cr \
-                --source comicvine \
-                --comicvine-key "$(cat /secret/credential)" \
-                --cv-use-series-start-as-volume \
-                --config /config \
-                "$f"; then
-                if comictagger \
-                  --no-gui \
-                  -r --tags-read cr --move \
-                  --dir /books/library/comics \
-                  --template "{series} ({year})/{series} #{issue} ({year})" \
-                  --config /config \
-                  "$f"; then
-                  touch "/scratch/incoming/comics/${base}.done"
+
+            cat > /tmp/source.json <<'EOF'
+            {
+              "source_id": "{{inputs.parameters.bundle_key}}",
+              "source_title": "{{inputs.parameters.bundle_title}}"
+            }
+            EOF
+
+            python -B /app/agent.py \
+              --unmatched-dir /scratch/incoming/comics \
+              --lane comics \
+              --source-context /tmp/source.json \
+              --decision-log-dir /books/library/.agent-decisions/comics \
+              --kavita-url http://kavita.books.svc.cluster.local:5000 \
+              --kavita-api-key-file /secret/kavita/credential \
+              --comicvine-api-key-file /secret/comicvine/credential \
+              --anthropic-credential-file /secret/anthropic/credential \
+              --model claude-sonnet-4-6
+
+            python -B /app/apply.py \
+              --source-id "{{inputs.parameters.bundle_key}}" \
+              --lane comics \
+              --unmatched-dir /scratch/incoming/comics \
+              --decision-log-dir /books/library/.agent-decisions/comics \
+              --kavita-url http://kavita.books.svc.cluster.local:5000 \
+              --kavita-api-key-file /secret/kavita/credential \
+              --comicvine-api-key-file /secret/comicvine/credential
+
+            # Sweep leftovers (uncertain decisions, low-confidence skips) to
+            # the dead-letter queue so scratch is empty and the workflow's
+            # cleanup step can drop the PVC cleanly.
+            if ls /scratch/incoming/comics/*.cbz >/dev/null 2>&1; then
+              mkdir -p /books/incoming/comics/_unmatched
+              for f in /scratch/incoming/comics/*.cbz; do
+                base=$(basename "$f")
+                if mv "$f" "/books/incoming/comics/_unmatched/$base"; then
+                  echo "Dead-lettered (agent uncertain or skipped): $base"
                 else
-                  echo "Dead-letter (tagged but rename failed): $f"
-                  mkdir -p /books/incoming/comics/_unmatched
-                  if mv "$f" /books/incoming/comics/_unmatched/; then
-                    touch "/scratch/incoming/comics/${base}.done"
-                  else
-                    echo "Warning: failed to move to _unmatched: $f"
-                  fi
+                  echo "Warning: failed to move to _unmatched: $f" >&2
                 fi
-              else
-                echo "Dead-letter (no ComicVine match): $f"
-                mkdir -p /books/incoming/comics/_unmatched
-                if mv "$f" /books/incoming/comics/_unmatched/; then
-                  touch "/scratch/incoming/comics/${base}.done"
-                else
-                  echo "Warning: failed to move to _unmatched: $f"
-                fi
-              fi
-            done
+              done
+            fi
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
@@ -740,22 +751,26 @@ spec:
             drop: ["ALL"]
         resources:
           requests:
-            cpu: 100m
-            memory: 2Gi
+            cpu: 200m
+            memory: 1Gi
           limits:
-            memory: 2Gi
+            memory: 1Gi
         volumeMounts:
-          - name: comicvine-secret
-            mountPath: /secret
-            readOnly: true
-          - name: config
-            mountPath: /config
-          - name: tmp
-            mountPath: /tmp
           - name: scratch
             mountPath: /scratch
           - name: library
             mountPath: /books
+          - name: kavita-secret
+            mountPath: /secret/kavita
+            readOnly: true
+          - name: comicvine-secret
+            mountPath: /secret/comicvine
+            readOnly: true
+          - name: anthropic-secret
+            mountPath: /secret/anthropic
+            readOnly: true
+          - name: tmp
+            mountPath: /tmp
 
     # Edge-case lane for rare `Humble Book Bundle` prose-only bundles.
     # Most humble bundles classify all-items to comics/manga; this is a
