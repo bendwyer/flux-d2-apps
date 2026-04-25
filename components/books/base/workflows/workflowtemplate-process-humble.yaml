@@ -592,6 +592,7 @@ spec:
                 --tags-write cr \
                 --source mangabaka \
                 --mangabaka-age-filter pornographic \
+                --mangabaka-use-series-start-as-volume \
                 --config /config \
                 "$f"; then
                 if comictagger \
@@ -619,6 +620,7 @@ spec:
                   --tags-write cr \
                   --source comicvine \
                   --comicvine-key "$(cat /secret/credential)" \
+                  --cv-use-series-start-as-volume \
                   --config /config \
                   "$f"; then
                   if comictagger \
@@ -701,6 +703,7 @@ spec:
                 --tags-write cr \
                 --source comicvine \
                 --comicvine-key "$(cat /secret/credential)" \
+                --cv-use-series-start-as-volume \
                 --config /config \
                 "$f"; then
                 if comictagger \
