@@ -288,7 +288,7 @@ spec:
     # the right --source based on each decision's recorded source.
     - name: metadata-manga
       container:
-        image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.0@sha256:25e2802358b0dd749d5073eebca381beebc01dee24207a30ebefac36f8a78875
+        image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.1@sha256:23af0531c74c98fe3d8e461985be1c28c652490b2e4e0be0275ae735d2399edc
         command: ["sh", "-c"]
         env:
           - name: HOME
@@ -307,7 +307,7 @@ spec:
             EOF
 
             python -B /app/agent.py \
-              --unmatched-dir /scratch/incoming/manga \
+              --staging-dir /scratch/incoming/manga \
               --lane manga \
               --source-context /tmp/source.json \
               --decision-log-dir /books/library/.agent-decisions/manga \
@@ -320,7 +320,7 @@ spec:
             python -B /app/apply.py \
               --source-id kobo \
               --lane manga \
-              --unmatched-dir /scratch/incoming/manga \
+              --staging-dir /scratch/incoming/manga \
               --decision-log-dir /books/library/.agent-decisions/manga \
               --kavita-url http://kavita.books.svc.cluster.local:5000 \
               --kavita-api-key-file /secret/kavita/credential \

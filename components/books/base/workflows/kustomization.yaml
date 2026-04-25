@@ -13,6 +13,7 @@ resources:
   - workflowtemplate-process-gutenberg.yaml
   - workflowtemplate-process-kobo.yaml
   - workflowtemplate-process-humble.yaml
+  - workflowtemplate-reprocess-bundle.yaml
   # CronWorkflows commented out until each workflow is manually validated
   # end-to-end via `argo submit -n books --from workflowtemplate/<name>`.
   # Uncomment (per lane or all at once) after proving:
