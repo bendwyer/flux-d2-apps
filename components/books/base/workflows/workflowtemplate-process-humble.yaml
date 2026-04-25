@@ -429,7 +429,12 @@ spec:
           - name: tmp
             mountPath: /tmp
 
+    # Templates mounting the RWO scratch PVC share `scratch-pvc` mutex so
+    # parallel siblings don't deadlock racing for the volume on different nodes.
     - name: convert-manga
+      synchronization:
+        mutexes:
+          - name: scratch-pvc
       inputs:
         parameters:
           - name: bundle_name
@@ -500,6 +505,9 @@ spec:
             mountPath: /scratch
 
     - name: convert-comics
+      synchronization:
+        mutexes:
+          - name: scratch-pvc
       inputs:
         parameters:
           - name: bundle_name
@@ -587,6 +595,9 @@ spec:
     # the agent today; if a manga item isn't on CV it dead-letters and
     # gets manual triage. MangaBaka extension is a future enhancement.
     - name: metadata-manga
+      synchronization:
+        mutexes:
+          - name: scratch-pvc
       inputs:
         parameters:
           - name: bundle_key
@@ -682,6 +693,9 @@ spec:
     # uncertain (or anything left in scratch after apply) dead-letter to
     # /books/incoming/comics/_unmatched for review.
     - name: metadata-comics
+      synchronization:
+        mutexes:
+          - name: scratch-pvc
       inputs:
         parameters:
           - name: bundle_key
@@ -781,6 +795,9 @@ spec:
     # plus the 50 MiB size veto). A hypothetical mixed-ebook-and-comics
     # bundle would mis-process — revisit if one ever appears.
     - name: metadata-ebook
+      synchronization:
+        mutexes:
+          - name: scratch-pvc
       inputs:
         parameters:
           - name: bundle_name
