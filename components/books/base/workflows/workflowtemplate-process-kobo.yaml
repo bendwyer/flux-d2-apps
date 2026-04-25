@@ -49,6 +49,12 @@ spec:
     - name: comicvine-secret
       secret:
         secretName: comicvine-credentials
+    - name: kavita-secret
+      secret:
+        secretName: kavita-agent-api-key
+    - name: anthropic-secret
+      secret:
+        secretName: anthropic-agent-api-key
   templates:
     - name: main
       dag:
@@ -275,57 +281,62 @@ spec:
           - name: tmp
             mountPath: /tmp
 
+    # Agent-decides + bundle-aware apply for the kobo manga lane. Agent runs
+    # with --lane manga which prefers MangaBaka (covers regular manga issues)
+    # with ComicVine as fallback (covers manga omnibuses, which MangaBaka
+    # indexes less reliably). apply.py routes the comictagger save call to
+    # the right --source based on each decision's recorded source.
     - name: metadata-manga
       container:
-        image: ghcr.io/bendwyer/containers/comictagger:1.6@sha256:b95350b251921a224e59b7ffac9d0961f48d0142e66f8c058c386b3fdf162aa3
+        image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.0
         command: ["sh", "-c"]
+        env:
+          - name: HOME
+            value: /tmp
         args:
           - |
+            set -e
             umask 022
             ls /scratch/incoming/manga/*.cbz >/dev/null 2>&1 || { echo "No .cbz files to process"; exit 0; }
-            for f in /scratch/incoming/manga/*.cbz; do
-              echo "Processing: $f"
-              if comictagger \
-                --no-gui \
-                -s -o -f \
-                --tags-write cr \
-                --source mangabaka \
-                --mangabaka-age-filter pornographic \
-                --mangabaka-use-series-start-as-volume \
-                --config /config \
-                "$f"; then
-                comictagger \
-                  --no-gui \
-                  -r --tags-read cr --move \
-                  --dir /books/library/manga \
-                  --template "{series}/{series} #{issue} ({year})" \
-                  --config /config \
-                  "$f" || echo "Warning: Tagged but failed to rename: $f"
-              else
-                echo "MangaBaka miss, trying ComicVine fallback: $f"
-                if comictagger \
-                  --no-gui \
-                  -s -o -f \
-                  --tags-write cr \
-                  --source comicvine \
-                  --comicvine-key "$(cat /secret/credential)" \
-                  --cv-use-series-start-as-volume \
-                  --config /config \
-                  "$f"; then
-                  comictagger \
-                    --no-gui \
-                    -r --tags-read cr --move \
-                    --dir /books/library/manga \
-                    --template "{series}/{series} #{issue} ({year})" \
-                    --config /config \
-                    "$f" || echo "Warning: Tagged but failed to rename: $f"
+
+            cat > /tmp/source.json <<'EOF'
+            {
+              "source_id": "kobo",
+              "source_title": "Kobo (rolling)"
+            }
+            EOF
+
+            python -B /app/agent.py \
+              --unmatched-dir /scratch/incoming/manga \
+              --lane manga \
+              --source-context /tmp/source.json \
+              --decision-log-dir /books/library/.agent-decisions/manga \
+              --kavita-url http://kavita.books.svc.cluster.local:5000 \
+              --kavita-api-key-file /secret/kavita/credential \
+              --comicvine-api-key-file /secret/comicvine/credential \
+              --anthropic-credential-file /secret/anthropic/credential \
+              --model claude-sonnet-4-6
+
+            python -B /app/apply.py \
+              --source-id kobo \
+              --lane manga \
+              --unmatched-dir /scratch/incoming/manga \
+              --decision-log-dir /books/library/.agent-decisions/manga \
+              --kavita-url http://kavita.books.svc.cluster.local:5000 \
+              --kavita-api-key-file /secret/kavita/credential \
+              --comicvine-api-key-file /secret/comicvine/credential
+
+            if ls /scratch/incoming/manga/*.cbz >/dev/null 2>&1; then
+              mkdir -p /books/incoming/manga/_unmatched
+              for f in /scratch/incoming/manga/*.cbz; do
+                base=$(basename "$f")
+                if mv "$f" "/books/incoming/manga/_unmatched/$base"; then
+                  echo "Dead-lettered (agent uncertain or skipped): $base"
                 else
-                  echo "Dead-letter (no match in either source): $f"
-                  mkdir -p /books/incoming/manga/_unmatched
-                  mv "$f" /books/incoming/manga/_unmatched/ || echo "Warning: failed to move to _unmatched: $f"
+                  echo "Warning: failed to move to _unmatched: $f" >&2
                 fi
-              fi
-            done
+              done
+            fi
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
@@ -333,22 +344,26 @@ spec:
             drop: ["ALL"]
         resources:
           requests:
-            cpu: 100m
-            memory: 256Mi
+            cpu: 200m
+            memory: 1Gi
           limits:
-            memory: 512Mi
+            memory: 1Gi
         volumeMounts:
-          - name: comicvine-secret
-            mountPath: /secret
-            readOnly: true
-          - name: config
-            mountPath: /config
-          - name: tmp
-            mountPath: /tmp
           - name: scratch
             mountPath: /scratch
           - name: library
             mountPath: /books
+          - name: kavita-secret
+            mountPath: /secret/kavita
+            readOnly: true
+          - name: comicvine-secret
+            mountPath: /secret/comicvine
+            readOnly: true
+          - name: anthropic-secret
+            mountPath: /secret/anthropic
+            readOnly: true
+          - name: tmp
+            mountPath: /tmp
 
     # archive: bulk copy + bulk check. rclone's `check` command requires
     # both args to be directory roots; per-file check against an object
