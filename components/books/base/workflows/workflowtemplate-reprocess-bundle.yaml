@@ -120,7 +120,7 @@ spec:
           - name: source_id
           - name: lane
       container:
-        image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.1@sha256:23af0531c74c98fe3d8e461985be1c28c652490b2e4e0be0275ae735d2399edc
+        image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.2@sha256:5d8574477e6227271e65bb633920e2f2778ebb601f85a74479dd823dc4e31c4e
         command: ["sh", "-c"]
         env:
           - name: HOME
@@ -225,7 +225,7 @@ spec:
           persistentVolumeClaim:
             claimName: "{{inputs.parameters.pvc_name}}"
       container:
-        image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.1@sha256:23af0531c74c98fe3d8e461985be1c28c652490b2e4e0be0275ae735d2399edc
+        image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.2@sha256:5d8574477e6227271e65bb633920e2f2778ebb601f85a74479dd823dc4e31c4e
         command: ["python", "-B", "/app/reprocess.py"]
         env:
           - name: HOME
