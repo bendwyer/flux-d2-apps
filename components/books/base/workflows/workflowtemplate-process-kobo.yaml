@@ -299,7 +299,7 @@ spec:
         mutexes:
           - name: scratch-pvc
       container:
-        image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.5@sha256:3da67578f80d12c6181d69cd2dc5a29fd8ab1dcacfe4004ab8cb6ac4ba9ae4a3
+        image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.6@sha256:301bb62c8584a65614d2813ceb6fe447685034a0169b5ee726a6cfe59d1d8705
         command: ["sh", "-c"]
         env:
           - name: HOME
