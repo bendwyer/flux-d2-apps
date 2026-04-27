@@ -18,8 +18,7 @@ spec:
           app:
             image:
               repository: lscr.io/linuxserver/kavita
-              tag: "0.8.9"
-              digest: sha256:52b11e05b430ce6c6e711c29ee0fc867f46c6bad64ed8d1c1c9e64322e7c362b
+              tag: "0.8.9@sha256:e0fad4eb103a0f5b2512308ba71d2ac842d75338649dd9800ec1d32e4f24d1af"
               pullPolicy: IfNotPresent
             env:
               TZ: Europe/Berlin
