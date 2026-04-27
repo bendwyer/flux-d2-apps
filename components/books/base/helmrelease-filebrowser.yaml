@@ -34,7 +34,7 @@ spec:
                   - ALL
             image:
               repository: filebrowser/filebrowser
-              tag: v2.63.2
+              tag: "v2.63.2@sha256:4dce87308b9f9cfbcf8d0a284fc9565d2b515530a6bae2d920b388161e093f26"
               pullPolicy: IfNotPresent
             resources:
               requests:
