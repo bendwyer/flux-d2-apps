@@ -444,7 +444,7 @@ spec:
           persistentVolumeClaim:
             claimName: "{{inputs.parameters.pvc_name}}"
       container:
-        image: ghcr.io/ciromattia/kcc:v9.7.2
+        image: ghcr.io/ciromattia/kcc:v9.7.2@sha256:b7174e1d5ec4a7102c351339c183f85db3c3fe64a774cc240ca6e44e541b439c
         command: ["sh", "-c"]
         env:
           - name: BUNDLE_NAME
@@ -517,7 +517,7 @@ spec:
           persistentVolumeClaim:
             claimName: "{{inputs.parameters.pvc_name}}"
       container:
-        image: ghcr.io/ciromattia/kcc:v9.7.2
+        image: ghcr.io/ciromattia/kcc:v9.7.2@sha256:b7174e1d5ec4a7102c351339c183f85db3c3fe64a774cc240ca6e44e541b439c
         command: ["sh", "-c"]
         env:
           - name: BUNDLE_NAME
