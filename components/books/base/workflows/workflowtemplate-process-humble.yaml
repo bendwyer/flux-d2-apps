@@ -851,7 +851,7 @@ spec:
           persistentVolumeClaim:
             claimName: "{{inputs.parameters.pvc_name}}"
       container:
-        image: rclone/rclone:1.73.5
+        image: rclone/rclone:1.73.5@sha256:1619a625f845e169c34b952cf40c483c0392965b821c5155cde8cbfd35254a96
         command: ["sh", "-c"]
         env:
           - name: BUNDLE_NAME
