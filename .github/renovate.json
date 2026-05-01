@@ -41,9 +41,10 @@
       "groupName": "ebook-metadata"
     },
     {
-      "description": "Group kcc across all manifests",
+      "description": "Group kcc across all manifests, never automerge. kcc tags GitHub prereleases (X.Y.0/X.Y.1) before promoting to stable, but Renovate's docker datasource can't see the GitHub prerelease flag (registry artifacts have no prerelease metadata). Manual review per bump to avoid landing on a prerelease.",
       "matchPackageNames": ["ghcr.io/ciromattia/kcc"],
-      "groupName": "kcc"
+      "groupName": "kcc",
+      "automerge": false
     },
     {
       "description": "Kavita: filter out nightly/canary tags; stable releases are bare X.Y.Z[.W]. Use loose versioning to compare 4-segment hotfixes like 0.8.9.1 correctly.",
