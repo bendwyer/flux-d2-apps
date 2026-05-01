@@ -14,16 +14,20 @@ spec:
   values:
     controllers:
       kavita:
+        pod:
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            fsGroup: 1000
         containers:
           app:
             image:
-              repository: lscr.io/linuxserver/kavita
-              tag: "0.8.9@sha256:3f01fe109074d83a85b849c5dac713f46b061b8b25a45a32e2b81e7fa3f91718"
+              repository: ghcr.io/kareadita/kavita
+              tag: "0.8.9@sha256:1f2acae7466d022f037ea09f7989eb7c487f916b881174c7a6de33dbfa8acb39"
               pullPolicy: IfNotPresent
             env:
               TZ: Europe/Berlin
-              PUID: "1000"
-              PGID: "1000"
             resources:
               requests:
                 cpu: 100m
@@ -58,12 +62,12 @@ spec:
         enabled: true
         existingClaim: kavita-config-pvc
         globalMounts:
-          - path: /config
+          - path: /kavita/config
       cache:
         enabled: true
         existingClaim: kavita-cache-pvc
         globalMounts:
-          - path: /config/cache
+          - path: /kavita/config/cache
       library:
         enabled: true
         existingClaim: library-shared-pvc
