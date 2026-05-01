@@ -44,6 +44,12 @@
       "description": "Group kcc across all manifests",
       "matchPackageNames": ["ghcr.io/ciromattia/kcc"],
       "groupName": "kcc"
+    },
+    {
+      "description": "Kavita: filter out nightly/canary tags; stable releases are bare X.Y.Z[.W]. Use loose versioning to compare 4-segment hotfixes like 0.8.9.1 correctly.",
+      "matchPackageNames": ["ghcr.io/kareadita/kavita"],
+      "allowedVersions": "/^\\d+\\.\\d+\\.\\d+(\\.\\d+)?$/",
+      "versioning": "loose"
     }
   ]
 }
