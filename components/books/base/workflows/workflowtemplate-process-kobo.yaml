@@ -86,7 +86,7 @@ spec:
     # rclone. One container per concern.
     - name: list-archive
       container:
-        image: rclone/rclone:1.73.5@sha256:1619a625f845e169c34b952cf40c483c0392965b821c5155cde8cbfd35254a96
+        image: rclone/rclone:1.74.1@sha256:eb8788b795f0009324e9572b0e2acb9b56885327c2746b07d67a9d3b893a6602
         command: ["sh", "-c"]
         args:
           - |
@@ -164,7 +164,7 @@ spec:
     # UUID to `book get`.
     - name: sync
       container:
-        image: ghcr.io/subdavis/kobodl:0.13.0@sha256:2a2ce51556e7886250ecb48ee14f793169a39b7717dc132cb08c444977d03800
+        image: ghcr.io/subdavis/kobodl:0.14.0@sha256:4ecc0ba105f29f00b7d203829460e0bd3ee55aec4e3494ce62cf611996bd3d38
         command: ["sh", "-c"]
         args:
           - |
@@ -221,7 +221,7 @@ spec:
         mutexes:
           - name: scratch-pvc
       container:
-        image: ghcr.io/bendwyer/containers/epub2cbz:2.1@sha256:6a473e0fd6fdfc0d3d9637d4a28713fb0a8e589556b0a3c35e64507dae8edc6a
+        image: ghcr.io/bendwyer/containers/epub2cbz:2.1@sha256:a8078551396a08934841bcc400b7fa0c0a7b6c0f195a1046e7ec5da671b9bead
         command: ["python3", "/app/epub2cbz.py"]
         args:
           - --input-dir
@@ -254,7 +254,7 @@ spec:
         mutexes:
           - name: scratch-pvc
       container:
-        image: ghcr.io/bendwyer/containers/ebook-metadata:2.0.2@sha256:497dc917bdec66ac71c1bb306e16d03aa5f6d2672ab4b4dda4e21b4857e0abbb
+        image: ghcr.io/bendwyer/containers/ebook-metadata:2.0.2@sha256:39ff6083f54a37b6ce6845a7f9717d305f5f27744f9be0b6b30f9cc7b115bd0e
         args:
           - --input-dir
           - /scratch/sources/kobo
@@ -299,7 +299,7 @@ spec:
         mutexes:
           - name: scratch-pvc
       container:
-        image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.16@sha256:5fa93bd10b889f428650e6e7b0a05bfbb6e40f67a396bad814f162dd75976151
+        image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.16@sha256:86fd2576fbd5880570ac9750be117859b26079bd57741865a35b7d8c409c1d15
         command: ["sh", "-c"]
         env:
           - name: HOME
@@ -381,7 +381,7 @@ spec:
     # path fails with "is a file not a directory".
     - name: archive
       container:
-        image: rclone/rclone:1.73.5@sha256:1619a625f845e169c34b952cf40c483c0392965b821c5155cde8cbfd35254a96
+        image: rclone/rclone:1.74.1@sha256:eb8788b795f0009324e9572b0e2acb9b56885327c2746b07d67a9d3b893a6602
         command: ["sh", "-c"]
         args:
           - |

@@ -185,7 +185,7 @@ spec:
         parameters:
           - name: bundle_key
       container:
-        image: ghcr.io/bendwyer/containers/humble-cli:0.23@sha256:eb51691fdee715da0c93b7bb543c25a3b76246c8482fe7f5d1582f9492f5cdad
+        image: ghcr.io/bendwyer/containers/humble-cli:0.23@sha256:dde83f452ee5c8690b20258fadd2b77ce381cff4481d572365de8fdf8abd0dfd
         command: ["sh", "-c"]
         args:
           - |
@@ -311,7 +311,7 @@ spec:
           persistentVolumeClaim:
             claimName: "{{inputs.parameters.pvc_name}}"
       container:
-        image: ghcr.io/bendwyer/containers/humble-cli:0.23@sha256:eb51691fdee715da0c93b7bb543c25a3b76246c8482fe7f5d1582f9492f5cdad
+        image: ghcr.io/bendwyer/containers/humble-cli:0.23@sha256:dde83f452ee5c8690b20258fadd2b77ce381cff4481d572365de8fdf8abd0dfd
         command: ["sh", "-c"]
         args:
           - |
@@ -403,7 +403,7 @@ spec:
           persistentVolumeClaim:
             claimName: "{{inputs.parameters.pvc_name}}"
       container:
-        image: ghcr.io/bendwyer/containers/humble-sorter:1.0.0@sha256:41a6eac22af55a8216e35e1adf7f0d68229ca805520071a00ee9af12915ef925
+        image: ghcr.io/bendwyer/containers/humble-sorter:1.0.0@sha256:74b6401530874ee3781ef6f4ec78dd40cc35470ef313b3cbe1fec8399199ed44
         command: ["python", "-B", "/app/humble_sorter.py"]
         args:
           - --bundle-dir
@@ -444,7 +444,7 @@ spec:
           persistentVolumeClaim:
             claimName: "{{inputs.parameters.pvc_name}}"
       container:
-        image: ghcr.io/ciromattia/kcc:v10.1.0@sha256:8cba211079cc7267479be35654fdcc723006b0377449b08671a916afe1ecaad1
+        image: ghcr.io/ciromattia/kcc:v10.1.3@sha256:db2e66c1b51447cd4854b8ec1a348af57c2a4a2adc4242f001d5f1413540425a
         command: ["sh", "-c"]
         env:
           - name: BUNDLE_NAME
@@ -517,7 +517,7 @@ spec:
           persistentVolumeClaim:
             claimName: "{{inputs.parameters.pvc_name}}"
       container:
-        image: ghcr.io/ciromattia/kcc:v10.1.0@sha256:8cba211079cc7267479be35654fdcc723006b0377449b08671a916afe1ecaad1
+        image: ghcr.io/ciromattia/kcc:v10.1.3@sha256:db2e66c1b51447cd4854b8ec1a348af57c2a4a2adc4242f001d5f1413540425a
         command: ["sh", "-c"]
         env:
           - name: BUNDLE_NAME
@@ -608,7 +608,7 @@ spec:
           persistentVolumeClaim:
             claimName: "{{inputs.parameters.pvc_name}}"
       container:
-        image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.16@sha256:5fa93bd10b889f428650e6e7b0a05bfbb6e40f67a396bad814f162dd75976151
+        image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.16@sha256:86fd2576fbd5880570ac9750be117859b26079bd57741865a35b7d8c409c1d15
         command: ["sh", "-c"]
         env:
           - name: HOME
@@ -706,7 +706,7 @@ spec:
           persistentVolumeClaim:
             claimName: "{{inputs.parameters.pvc_name}}"
       container:
-        image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.16@sha256:5fa93bd10b889f428650e6e7b0a05bfbb6e40f67a396bad814f162dd75976151
+        image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.16@sha256:86fd2576fbd5880570ac9750be117859b26079bd57741865a35b7d8c409c1d15
         command: ["sh", "-c"]
         env:
           - name: HOME
@@ -807,7 +807,7 @@ spec:
           persistentVolumeClaim:
             claimName: "{{inputs.parameters.pvc_name}}"
       container:
-        image: ghcr.io/bendwyer/containers/ebook-metadata:2.0.2@sha256:497dc917bdec66ac71c1bb306e16d03aa5f6d2672ab4b4dda4e21b4857e0abbb
+        image: ghcr.io/bendwyer/containers/ebook-metadata:2.0.2@sha256:39ff6083f54a37b6ce6845a7f9717d305f5f27744f9be0b6b30f9cc7b115bd0e
         command: ["sh", "-c"]
         env:
           - name: BUNDLE_NAME
@@ -851,7 +851,7 @@ spec:
           persistentVolumeClaim:
             claimName: "{{inputs.parameters.pvc_name}}"
       container:
-        image: rclone/rclone:1.73.5@sha256:1619a625f845e169c34b952cf40c483c0392965b821c5155cde8cbfd35254a96
+        image: rclone/rclone:1.74.1@sha256:eb8788b795f0009324e9572b0e2acb9b56885327c2746b07d67a9d3b893a6602
         command: ["sh", "-c"]
         env:
           - name: BUNDLE_NAME

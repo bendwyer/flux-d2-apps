@@ -35,7 +35,7 @@ spec:
 
     - name: metadata
       container:
-        image: ghcr.io/bendwyer/containers/ebook-metadata:2.0.2@sha256:497dc917bdec66ac71c1bb306e16d03aa5f6d2672ab4b4dda4e21b4857e0abbb
+        image: ghcr.io/bendwyer/containers/ebook-metadata:2.0.2@sha256:39ff6083f54a37b6ce6845a7f9717d305f5f27744f9be0b6b30f9cc7b115bd0e
         args:
           - --input-dir
           - /books/sources/project-gutenberg
@@ -67,7 +67,7 @@ spec:
 
     - name: archive
       container:
-        image: rclone/rclone:1.73.5@sha256:1619a625f845e169c34b952cf40c483c0392965b821c5155cde8cbfd35254a96
+        image: rclone/rclone:1.74.1@sha256:eb8788b795f0009324e9572b0e2acb9b56885327c2746b07d67a9d3b893a6602
         command: ["sh", "-c"]
         args:
           - |
