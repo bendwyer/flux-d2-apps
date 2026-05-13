@@ -164,7 +164,7 @@ spec:
     # UUID to `book get`.
     - name: sync
       container:
-        image: ghcr.io/subdavis/kobodl:0.13.0@sha256:2a2ce51556e7886250ecb48ee14f793169a39b7717dc132cb08c444977d03800
+        image: ghcr.io/subdavis/kobodl:0.14.0@sha256:4ecc0ba105f29f00b7d203829460e0bd3ee55aec4e3494ce62cf611996bd3d38
         command: ["sh", "-c"]
         args:
           - |
