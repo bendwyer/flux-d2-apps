@@ -12,6 +12,8 @@ spec:
     name: app-template
     namespace: bjw-s
   values:
+    defaultPodOptions:
+      automountServiceAccountToken: true
     controllers:
       homepage:
         containers:
