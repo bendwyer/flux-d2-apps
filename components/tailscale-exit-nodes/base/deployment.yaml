@@ -1,0 +1,74 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tailscale-exit-nodes
+  namespace: tailscale-exit-nodes
+  labels:
+    app: tailscale-exit-nodes
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: tailscale-exit-nodes
+  template:
+    metadata:
+      labels:
+        app: tailscale-exit-nodes
+    spec:
+      containers:
+        - name: tailscale-exit-nodes
+          image: ghcr.io/bendwyer/containers/tailscale-exit-nodes:0.1.0@sha256:1a1235f97244903aaf16f61411e80e173235265febca5e09b8a4b782b2ac363b
+          ports:
+            - containerPort: 8080
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: tailscale-exit-nodes-db-app
+                  key: uri
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: exit-nodes-aws
+                  key: username
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: exit-nodes-aws
+                  key: credential
+            - name: VULTR_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: exit-nodes-vultr
+                  key: credential
+            - name: TAILSCALE_OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: exit-nodes-tailscale
+                  key: username
+            - name: TAILSCALE_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: exit-nodes-tailscale
+                  key: credential
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+            limits:
+              memory: 128Mi

@@ -1,0 +1,7 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tailscale-exit-nodes
+  labels:
+    app.kubernetes.io/name: tailscale-exit-nodes
