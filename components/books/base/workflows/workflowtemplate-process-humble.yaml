@@ -185,7 +185,7 @@ spec:
         parameters:
           - name: bundle_key
       container:
-        image: ghcr.io/bendwyer/containers/humble-cli:0.23@sha256:3700990e8a088c9184a3faa240a5de37d841cd80ba3359968df53b425fb208de
+        image: ghcr.io/bendwyer/containers/humble-cli:0.23@sha256:9f30265419e628867319a92ce3a77be6cd4fc1dbda475bb85f2dcbd445915b7b
         command: ["sh", "-c"]
         args:
           - |
@@ -311,7 +311,7 @@ spec:
           persistentVolumeClaim:
             claimName: "{{inputs.parameters.pvc_name}}"
       container:
-        image: ghcr.io/bendwyer/containers/humble-cli:0.23@sha256:3700990e8a088c9184a3faa240a5de37d841cd80ba3359968df53b425fb208de
+        image: ghcr.io/bendwyer/containers/humble-cli:0.23@sha256:9f30265419e628867319a92ce3a77be6cd4fc1dbda475bb85f2dcbd445915b7b
         command: ["sh", "-c"]
         args:
           - |
@@ -403,7 +403,7 @@ spec:
           persistentVolumeClaim:
             claimName: "{{inputs.parameters.pvc_name}}"
       container:
-        image: ghcr.io/bendwyer/containers/humble-sorter:1.0.0@sha256:489846f89eb55d6b1a6ac1b40d4b1502598acdfc8e2e41a5dc8e1914357ca3db
+        image: ghcr.io/bendwyer/containers/humble-sorter:1.0.0@sha256:7602f64e965797c7304a37c8b750b67a8ddcbd5e6b1d35356296fd37631b4b07
         command: ["python", "-B", "/app/humble_sorter.py"]
         args:
           - --bundle-dir
@@ -608,7 +608,7 @@ spec:
           persistentVolumeClaim:
             claimName: "{{inputs.parameters.pvc_name}}"
       container:
-        image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.16@sha256:3096c5c455449f501da1eb66f96a55dc04c0341c2f8b0b9e0db0ab84e03098e8
+        image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.16@sha256:9f43cedc5a43bc55eea82de54891d71962cb36bbbed7b913b18ea527a212a8d9
         command: ["sh", "-c"]
         env:
           - name: HOME
@@ -706,7 +706,7 @@ spec:
           persistentVolumeClaim:
             claimName: "{{inputs.parameters.pvc_name}}"
       container:
-        image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.16@sha256:3096c5c455449f501da1eb66f96a55dc04c0341c2f8b0b9e0db0ab84e03098e8
+        image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.16@sha256:9f43cedc5a43bc55eea82de54891d71962cb36bbbed7b913b18ea527a212a8d9
         command: ["sh", "-c"]
         env:
           - name: HOME
@@ -807,7 +807,7 @@ spec:
           persistentVolumeClaim:
             claimName: "{{inputs.parameters.pvc_name}}"
       container:
-        image: ghcr.io/bendwyer/containers/ebook-metadata:2.0.2@sha256:775fe875efd6ed53a950e36e866a83b0085bf5d5e63ecce3306d509a63ceb27d
+        image: ghcr.io/bendwyer/containers/ebook-metadata:2.0.2@sha256:d1d6a1fbbe8f05707550bd54aa90f9567f423c72056027364dc9b0e4fe862793
         command: ["sh", "-c"]
         env:
           - name: BUNDLE_NAME
