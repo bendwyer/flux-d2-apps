@@ -1,0 +1,22 @@
+---
+# CloudNativePG ledger for the exit-node deployments table. CNPG auto-creates
+# Secret tailscale-exit-nodes-db-app (key uri) consumed as DATABASE_URL.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: tailscale-exit-nodes-db
+  namespace: tailscale-exit-nodes
+spec:
+  instances: 1
+  storage:
+    size: 1Gi
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      memory: 256Mi
+  bootstrap:
+    initdb:
+      database: exitnodes
+      owner: exitnodes

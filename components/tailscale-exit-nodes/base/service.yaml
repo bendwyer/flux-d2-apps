@@ -1,0 +1,18 @@
+---
+# In-cluster only. Windmill workers reach the JSON API at
+# http://tailscale-exit-nodes.tailscale-exit-nodes.svc.cluster.local:8080
+apiVersion: v1
+kind: Service
+metadata:
+  name: tailscale-exit-nodes
+  namespace: tailscale-exit-nodes
+  labels:
+    app: tailscale-exit-nodes
+spec:
+  selector:
+    app: tailscale-exit-nodes
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+  type: ClusterIP
