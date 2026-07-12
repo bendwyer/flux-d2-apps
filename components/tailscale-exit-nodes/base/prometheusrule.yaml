@@ -1,0 +1,60 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: tailscale-exit-nodes
+  namespace: tailscale-exit-nodes
+  labels:
+    app.kubernetes.io/part-of: k8s-monitoring
+spec:
+  groups:
+    - name: tailscale-exit-nodes.rules
+      rules:
+        - alert: ExitNodeLeaked
+          expr: exit_node_expired_active > 0
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Exit node past its TTL was not destroyed ({{ $labels.provider }})"
+            description: >-
+              {{ $value }} active exit node(s) on {{ $labels.provider }} are past
+              their TTL but still running. The reaper should have destroyed them,
+              so they are still billing and still reachable. Check the
+              tailscale-exit-nodes reaper logs.
+        - alert: ExitNodeReaperStalled
+          expr: time() - max(exit_node_reaper_last_sweep_timestamp_seconds{trigger="periodic"}) > 1200
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Exit node reaper has not swept recently"
+            description: >-
+              The periodic reaper last swept {{ $value | humanizeDuration }} ago
+              (it should run every 5 minutes). TTL enforcement may be stalled, so
+              expired exit nodes will not be destroyed. Check the
+              tailscale-exit-nodes pod.
+        - alert: ExitNodeStuckProvisioning
+          expr: exit_node_deployments{status="provisioning"} > 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Exit node stuck provisioning ({{ $labels.provider }}/{{ $labels.region }})"
+            description: >-
+              An exit node on {{ $labels.provider }} in {{ $labels.region }} has
+              been provisioning for over 15 minutes (it normally takes a few
+              minutes). The provisioning saga may be wedged or the cloud provider
+              may be slow.
+        - alert: ExitNodeReaperErrors
+          expr: rate(exit_node_reaper_errors_total[15m]) > 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Exit node reaper is hitting errors ({{ $labels.scope }})"
+            description: >-
+              The reaper has been reporting {{ $labels.scope }} errors for over
+              15 minutes. Cloud API calls to list or delete instances may be
+              failing, which can delay TTL teardown. Check the
+              tailscale-exit-nodes reaper logs.
