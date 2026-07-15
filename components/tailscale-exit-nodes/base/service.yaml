@@ -1,5 +1,5 @@
 ---
-# In-cluster only. Windmill workers reach the JSON API at
+# In-cluster only. Semaphore reaches the JSON API at
 # http://tailscale-exit-nodes.tailscale-exit-nodes.svc.cluster.local:8080
 apiVersion: v1
 kind: Service
