@@ -34,8 +34,6 @@ kind: PersistentVolumeClaim
 metadata:
   name: library-shared-pvc
   namespace: books
-  labels:
-    k8up.io/backup-schedule: library-shared
 spec:
   accessModes:
     - ReadWriteMany
