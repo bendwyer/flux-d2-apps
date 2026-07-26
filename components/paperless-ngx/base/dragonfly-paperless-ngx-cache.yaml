@@ -16,7 +16,7 @@ spec:
     - --proactor_threads=1
   authentication:
     passwordFromSecret:
-      name: paperless-ngx
+      name: paperless-ngx-secrets
       key: broker-password
   resources:
     limits:
