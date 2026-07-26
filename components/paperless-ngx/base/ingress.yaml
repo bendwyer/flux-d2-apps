@@ -1,0 +1,31 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: paperless-ngx
+  namespace: paperless-ngx
+  annotations:
+    tailscale.com/proxy-group: private-ingress
+    tailscale.com/tags: tag:k8s-private
+    tailscale.com/http-redirect: "true"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Paperless"
+    gethomepage.dev/group: "Apps"
+    gethomepage.dev/icon: "paperless-ngx.png"
+    gethomepage.dev/href: "https://paperless.tail0c49c.ts.net"
+    gethomepage.dev/app: "paperless-ngx"
+spec:
+  ingressClassName: tailscale
+  tls:
+    - hosts:
+        - paperless
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: paperless-ngx
+                port:
+                  name: http

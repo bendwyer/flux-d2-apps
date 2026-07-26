@@ -1,0 +1,11 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - cluster-paperless-ngx-db.yaml
+  - dragonfly-paperless-ngx-cache.yaml
+  - helmrelease.yaml
+  - ingress.yaml
+  - namespace.yaml
+  - pvcs.yaml

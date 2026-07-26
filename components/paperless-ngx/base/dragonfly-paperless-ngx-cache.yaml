@@ -1,0 +1,22 @@
+---
+# Task queue for paperless. Nothing in here is worth keeping, so there is no
+# snapshot: a restart loses queued OCR jobs and they get picked up again.
+# The password comes from the same secret paperless reads, so it is only
+# written down once.
+apiVersion: dragonflydb.io/v1alpha1
+kind: Dragonfly
+metadata:
+  name: paperless-ngx-cache
+  namespace: paperless-ngx
+spec:
+  replicas: 1
+  authentication:
+    passwordFromSecret:
+      name: paperless-ngx
+      key: broker-password
+  resources:
+    limits:
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 256Mi
