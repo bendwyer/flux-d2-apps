@@ -120,7 +120,6 @@ spec:
 
               PAPERLESS_OCR_LANGUAGE: eng+deu+jpn+spa
               PAPERLESS_OCR_LANGUAGES: jpn script-jpan script-jpan-vert
-              PAPERLESS_OCR_SKIP_ARCHIVE_FILE: with_text
 
               PAPERLESS_TASK_WORKERS: "2"
               PAPERLESS_THREADS_PER_WORKER: "1"
