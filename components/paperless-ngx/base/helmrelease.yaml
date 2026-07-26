@@ -122,16 +122,15 @@ spec:
               # the upstream default; pinned so it cannot drift.
               PAPERLESS_DATE_ORDER: DMY
 
-              PAPERLESS_TASK_WORKERS: "2"
-              PAPERLESS_THREADS_PER_WORKER: "1"
               PAPERLESS_WORKER_TIMEOUT: "3600"
               PAPERLESS_TIME_ZONE: Europe/Berlin
             resources:
               limits:
-                memory: 3Gi
+                # One page buffer per OCR thread, so eight in flight here.
+                memory: 6Gi
               requests:
-                cpu: 250m
-                memory: 3Gi
+                cpu: 2000m
+                memory: 6Gi
         revisionHistoryLimit: 3
 
       tika:
