@@ -115,9 +115,6 @@ spec:
               PAPERLESS_TIKA_ENDPOINT: http://paperless-ngx-tika:9998
               PAPERLESS_TIKA_GOTENBERG_ENDPOINT: http://paperless-ngx-gotenberg:3000
 
-              PAPERLESS_CONSUMER_RECURSIVE: "true"
-              PAPERLESS_CONSUMER_SUBDIRS_AS_TAGS: "true"
-
               PAPERLESS_OCR_LANGUAGE: eng+deu+jpn+spa
               PAPERLESS_OCR_LANGUAGES: jpn script-jpan script-jpan-vert
 
