@@ -1,0 +1,12 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../base
+  - onepassworditem-admin.yaml
+  - onepassworditem-oidc.yaml
+  - onepassworditem-ovh-k8up.yaml
+  - onepassworditem-paperless-ngx.yaml
+  - podconfig-k8up.yaml
+  - schedule-paperless-ngx.yaml

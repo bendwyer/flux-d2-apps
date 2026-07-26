@@ -1,0 +1,37 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/CustomResourceDefinition/catalog/refs/heads/main/schema/postgresql.cnpg.io/cluster_v1.json
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: paperless-ngx-db
+  namespace: paperless-ngx
+spec:
+  instances: 1
+  storage:
+    size: 10Gi
+  resources:
+    limits:
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 512Mi
+  bootstrap:
+    initdb:
+      database: paperless
+      owner: paperless
+  # k8up backs this up by running pg_dump inside the pod instead of copying the
+  # database files, because copying a running database gives a broken copy.
+  # backup: "false" turns that file copy off; it only applies to volumes, so the
+  # dump still runs. Output lands in the same restic repo as the media volume,
+  # as plain SQL so restic can dedupe it against the previous night.
+  #
+  # inheritedMetadata puts these on the database pod. Annotations set this way
+  # always apply, so the shared cloudnative-pg install needs no change. The dump
+  # connects as postgres over the local socket, the only login allowed there.
+  inheritedMetadata:
+    annotations:
+      k8up.io/backup: "false"
+      k8up.io/backupcommand-container: postgres
+      k8up.io/file-extension: .sql
+      k8up.io/backupcommand: >-
+        /bin/sh -c 'pg_dump -h /controller/run -U postgres -d paperless --clean --if-exists'

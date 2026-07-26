@@ -1,0 +1,66 @@
+---
+# Documents and thumbnails. The only files here worth backing up; the database
+# is the other half of a restore and gets dumped separately.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: paperless-ngx-media
+  namespace: paperless-ngx
+  labels:
+    k8up.io/backup-schedule: paperless-ngx
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 15Gi
+  storageClassName: longhorn
+---
+# Search index, classifier and logs. Not backed up: paperless rebuilds the index
+# when it starts and retrains the classifier every hour.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: paperless-ngx-data
+  namespace: paperless-ngx
+  annotations:
+    k8up.io/backup: "false"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: longhorn
+---
+# Drop documents here to have them imported. Emptied as they are processed.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: paperless-ngx-consume
+  namespace: paperless-ngx
+  annotations:
+    k8up.io/backup: "false"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: longhorn
+---
+# Somewhere for manual exports to land. Not backed up.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: paperless-ngx-export
+  namespace: paperless-ngx
+  annotations:
+    k8up.io/backup: "false"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: longhorn
