@@ -33,7 +33,9 @@ spec:
       storage: 10Gi
   storageClassName: longhorn
 ---
-# Drop documents here to have them imported. Emptied as they are processed.
+# Must exist: the consumer refuses to start without it. Documents are uploaded
+# through the API rather than dropped here, so it holds nothing worth
+# replicating and stays on the single-replica class.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -46,8 +48,8 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 5Gi
-  storageClassName: longhorn
+      storage: 1Gi
+  storageClassName: longhorn-scratch
 ---
 # Somewhere for manual exports to land. Not backed up.
 apiVersion: v1
