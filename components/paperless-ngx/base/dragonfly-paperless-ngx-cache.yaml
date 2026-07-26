@@ -10,13 +10,17 @@ metadata:
   namespace: paperless-ngx
 spec:
   replicas: 1
+  # Dragonfly runs one IO thread per core and needs 256Mi per thread, so it
+  # would demand 2.5Gi on an eight core node. One thread is ample for this.
+  args:
+    - --proactor_threads=1
   authentication:
     passwordFromSecret:
       name: paperless-ngx
       key: broker-password
   resources:
     limits:
-      memory: 256Mi
+      memory: 512Mi
     requests:
       cpu: 50m
-      memory: 256Mi
+      memory: 512Mi
