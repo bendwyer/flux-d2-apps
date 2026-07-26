@@ -121,6 +121,10 @@ spec:
               PAPERLESS_OCR_LANGUAGE: eng+deu+jpn+spa
               PAPERLESS_OCR_LANGUAGES: jpn script-jpan script-jpan-vert
 
+              # Day-first for ambiguous dates like 03/04/2026. Currently also
+              # the upstream default; pinned so it cannot drift.
+              PAPERLESS_DATE_ORDER: DMY
+
               PAPERLESS_TASK_WORKERS: "2"
               PAPERLESS_THREADS_PER_WORKER: "1"
               PAPERLESS_WORKER_TIMEOUT: "3600"
