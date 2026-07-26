@@ -34,7 +34,7 @@ spec:
               BROKER_PASSWORD:
                 valueFrom:
                   secretKeyRef:
-                    name: paperless-ngx
+                    name: paperless-ngx-secrets
                     key: broker-password
               PAPERLESS_REDIS: redis://:$(BROKER_PASSWORD)@paperless-ngx-cache.paperless-ngx.svc.cluster.local:6379
 
@@ -72,7 +72,7 @@ spec:
               PAPERLESS_SECRET_KEY:
                 valueFrom:
                   secretKeyRef:
-                    name: paperless-ngx
+                    name: paperless-ngx-secrets
                     key: secret-key
 
               # Local admin, created on first start. Kept alongside SSO so a

@@ -7,6 +7,6 @@ resources:
   - onepassworditem-admin.yaml
   - onepassworditem-oidc.yaml
   - onepassworditem-ovh-k8up.yaml
-  - onepassworditem-paperless-ngx.yaml
+  - onepassworditem-secrets.yaml
   - podconfig-k8up.yaml
   - schedule-paperless-ngx.yaml
