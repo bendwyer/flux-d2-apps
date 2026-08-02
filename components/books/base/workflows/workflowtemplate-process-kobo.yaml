@@ -254,7 +254,7 @@ spec:
         mutexes:
           - name: scratch-pvc
       container:
-        image: ghcr.io/bendwyer/containers/ebook-metadata:2.0.2@sha256:65000e490ed9f36285850071d3c97f07280ddff089a91c7a406012d26cf9e3c4
+        image: ghcr.io/bendwyer/containers/ebook-metadata:2.0.2@sha256:aa8732d6e3b78b5230ad0b7f1b75357f918b6544dc2e1cee327187a6d8e3a3af
         args:
           - --input-dir
           - /scratch/sources/kobo
