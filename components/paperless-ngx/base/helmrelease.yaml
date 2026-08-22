@@ -138,7 +138,7 @@ spec:
           app:
             image:
               repository: docker.io/apache/tika
-              tag: "3.3.1.0-full@sha256:d8e6ed96260ad89307a93195a1b856102987a818ac648502f8efbaf313d32470"
+              tag: "4.0.0@sha256:a8b442501f601fb15015de974f9afe13dd242b0f14e49a2b144fadcb214a555b"
               pullPolicy: IfNotPresent
             resources:
               limits:
