@@ -185,7 +185,7 @@ spec:
         parameters:
           - name: bundle_key
       container:
-        image: ghcr.io/bendwyer/containers/humble-cli:0.23.1@sha256:c97e572ab75ebbe15807b59b435ab84781ad23700f5c0101b9444c111e0b2fa8
+        image: ghcr.io/bendwyer/containers/humble-cli:0.23.1@sha256:891c6077c3893582a589ca2e5f2e02c59ca274d3f2535225a7055f74f2f4f765
         command: ["sh", "-c"]
         args:
           - |
@@ -311,7 +311,7 @@ spec:
           persistentVolumeClaim:
             claimName: "{{inputs.parameters.pvc_name}}"
       container:
-        image: ghcr.io/bendwyer/containers/humble-cli:0.23.1@sha256:c97e572ab75ebbe15807b59b435ab84781ad23700f5c0101b9444c111e0b2fa8
+        image: ghcr.io/bendwyer/containers/humble-cli:0.23.1@sha256:891c6077c3893582a589ca2e5f2e02c59ca274d3f2535225a7055f74f2f4f765
         command: ["sh", "-c"]
         args:
           - |
