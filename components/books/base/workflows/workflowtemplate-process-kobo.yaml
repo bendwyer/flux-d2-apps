@@ -86,7 +86,7 @@ spec:
     # rclone. One container per concern.
     - name: list-archive
       container:
-        image: rclone/rclone:1.75@sha256:45401ad7410db1d67ffdb58e19059ad20b0d8e0285a60e38bbec55cc1019c7a5
+        image: rclone/rclone:1.75.1@sha256:45401ad7410db1d67ffdb58e19059ad20b0d8e0285a60e38bbec55cc1019c7a5
         command: ["sh", "-c"]
         args:
           - |
@@ -381,7 +381,7 @@ spec:
     # path fails with "is a file not a directory".
     - name: archive
       container:
-        image: rclone/rclone:1.75@sha256:45401ad7410db1d67ffdb58e19059ad20b0d8e0285a60e38bbec55cc1019c7a5
+        image: rclone/rclone:1.75.1@sha256:45401ad7410db1d67ffdb58e19059ad20b0d8e0285a60e38bbec55cc1019c7a5
         command: ["sh", "-c"]
         args:
           - |
