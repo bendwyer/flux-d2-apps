@@ -69,6 +69,12 @@
       "matchPackageNames": ["ghcr.io/kareadita/kavita"],
       "allowedVersions": "/^\\d+\\.\\d+\\.\\d+(\\.\\d+)?$/",
       "versioning": "loose"
+    },
+    {
+      "description": "Tika: hold at 3.x until tika-client speaks Tika 4 (stumpylog/tika-client#87); Tika 4 dropped /tika/form/* so paperless-ngx fails every Office parse with a 404. Docker versioning keeps the -full variant, which semver-coerced drops by coercing 3.3.1.0-full to 3.3.1.",
+      "matchPackageNames": ["docker.io/apache/tika"],
+      "allowedVersions": "/^3\\./",
+      "versioning": "docker"
     }
   ]
 }
