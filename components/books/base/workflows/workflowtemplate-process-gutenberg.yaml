@@ -35,7 +35,7 @@ spec:
 
     - name: metadata
       container:
-        image: ghcr.io/bendwyer/containers/ebook-metadata:2.0.2@sha256:b2ed96928146a1d76608d1561cae664716ee5eac25d39eb83e9ab6b55590e629
+        image: ghcr.io/bendwyer/containers/ebook-metadata:2.0.2@sha256:62f228a0a50aa15f57808f86a0148a004d5405d3cffd35df5d39d7e8de934a4a
         args:
           - --input-dir
           - /books/sources/project-gutenberg
