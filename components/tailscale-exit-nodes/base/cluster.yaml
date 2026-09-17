@@ -1,4 +1,5 @@
 ---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/CustomResourceDefinition/catalog/refs/heads/main/schema/postgresql.cnpg.io/cluster_v1.json
 # CloudNativePG ledger for the exit-node deployments table. CNPG auto-creates
 # Secret tailscale-exit-nodes-db-app (key uri) consumed as DATABASE_URL.
 apiVersion: postgresql.cnpg.io/v1
@@ -15,6 +16,9 @@ spec:
   # instances sharing a node would put two of the three copies on one disk.
   affinity:
     podAntiAffinityType: required
+  # Talos's drain timeout is a hardcoded 300s.
+  stopDelay: 120 # default 1800
+  smartShutdownTimeout: 30 # default 180
   storage:
     storageClass: longhorn-single
     size: 1Gi
