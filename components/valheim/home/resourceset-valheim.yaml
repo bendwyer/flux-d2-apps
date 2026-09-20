@@ -10,15 +10,15 @@ spec:
   # repository, because all three are one to one and the save file pins the
   # name: changing it does not rename a world, it starts a new empty one.
   #
-  # The port is per world because that is what distinguishes servers sharing a
-  # public address, and it is an identifier rather than a listening port that
-  # has to be reachable, since crossplay reaches players through a relay.
+  # The port is derived from the name rather than chosen, because it has to
+  # differ between worlds sharing a public address and nothing else about it
+  # matters: crossplay binds no inbound socket, so this is how a world is told
+  # apart at the relay, not something that has to be reachable.
   #
   # Everything else is generated. Adding a world is an entry here plus a
   # credential item holding its password.
   inputs:
     - name: "borgheim"
-      port: "2456"
       credentialsItem: "uzjdzszpgjth543epmhdjbx33q"
 
   resources:
@@ -201,7 +201,11 @@ spec:
                     TZ: Europe/Berlin
                     VALHEIM_PUBLIC: "0"
                     VALHEIM_CROSSPLAY: "true"
-                    VALHEIM_PORT: << inputs.port | quote >>
+                    # Derived, not random: a value regenerated per reconcile
+                    # would roll the pod every time. Always even, because the
+                    # server also binds the port above this one, so one world's
+                    # query port can never land on another world's game port.
+                    VALHEIM_PORT: << add 20000 (mul 2 (mod (adler32sum inputs.name | int64) 20000)) | quote >>
                     # One value for both. The server serves exactly one world,
                     # and the save file pins the name, so these cannot
                     # meaningfully differ.
