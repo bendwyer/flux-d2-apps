@@ -260,11 +260,11 @@ spec:
             recordTTL: 300
             targets:
               - home.bdwr.cloud
-            providerSpecific:
-              # Cloudflare's proxy terminates HTTP and would answer with its own
-              # address. It cannot carry game traffic.
-              - name: external-dns.alpha.kubernetes.io/cloudflare-proxied
-                value: "false"
+            # Proxying is deliberately not declared here. The Cloudflare provider
+            # sets the proxied property on every endpoint itself, and declaring it
+            # as well made the plan differ from the zone on every pass: a no-op
+            # write each minute, forever. The record is unproxied either way,
+            # because external-dns defaults it off.
 
     - apiVersion: batch/v1
       kind: CronJob
