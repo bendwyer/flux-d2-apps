@@ -242,6 +242,30 @@ spec:
               globalMounts:
                 - path: /data/worlds
 
+    # The public name for this world, so it can be shared without handing out an
+    # address that changes. A CNAME onto the record the ddns job maintains, so
+    # the address lives in one place rather than being copied here to go stale.
+    #
+    # Both this name and a join code only tell Valheim which relay the server
+    # registered with, so nothing behind it has to be reachable.
+    - apiVersion: externaldns.k8s.io/v1alpha1
+      kind: DNSEndpoint
+      metadata:
+        name: valheim-<< inputs.name >>
+        namespace: valheim
+      spec:
+        endpoints:
+          - dnsName: << inputs.name >>.bdwr.cloud
+            recordType: CNAME
+            recordTTL: 300
+            targets:
+              - home.bdwr.cloud
+            providerSpecific:
+              # Cloudflare's proxy terminates HTTP and would answer with its own
+              # address. It cannot carry game traffic.
+              - name: external-dns.alpha.kubernetes.io/cloudflare-proxied
+                value: "false"
+
     - apiVersion: batch/v1
       kind: CronJob
       metadata:
