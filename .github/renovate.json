@@ -19,6 +19,15 @@
       "depNameTemplate": "ciromattia/kcc",
       "versioningTemplate": "semver-coerced",
       "datasourceTemplate": "github-releases"
+    },
+    {
+      "description": "app-template splits an image into repository and tag. The kubernetes manager reads only a flat image: line and helm-values reads only a values file, and a ResourceSet is neither, so without this the pin never moves and nothing reports it.",
+      "customType": "regex",
+      "managerFilePatterns": ["/components/.+/resourceset-.+\\.yaml$/"],
+      "matchStrings": [
+        "repository:\\s+(?<depName>\\S+)\\s*\\n\\s*tag:\\s+\"(?<currentValue>[^@\"]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?\""
+      ],
+      "datasourceTemplate": "docker"
     }
   ],
   "packageRules": [
