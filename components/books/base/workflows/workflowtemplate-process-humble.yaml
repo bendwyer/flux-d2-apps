@@ -807,7 +807,7 @@ spec:
           persistentVolumeClaim:
             claimName: "{{inputs.parameters.pvc_name}}"
       container:
-        image: ghcr.io/bendwyer/containers/ebook-metadata:2.0.2@sha256:c6ef640408bd1a32ffe64d244f97e8445efd4ebdd49524f533a33953fdd16526
+        image: ghcr.io/bendwyer/containers/ebook-metadata:2.0.2@sha256:6d640e38cd4b62d1db0d577ec81e2957bb1f697b709ef1ec7cfad0774cd1d98d
         command: ["sh", "-c"]
         env:
           - name: BUNDLE_NAME
