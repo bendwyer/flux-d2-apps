@@ -1,0 +1,9 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../base
+  - onepassworditem-ovh-k8up.yaml
+  - podconfig-k8up.yaml
+  - resourceset-valheim.yaml

@@ -6,6 +6,7 @@
   "labels": ["dependencies"],
   "rebaseWhen": "behind-base-branch",
   "separateMinorPatch": true,
+  "timezone": "Europe/Berlin",
   "flux": { "managerFilePatterns": ["/components/.+\\.yaml$/"] },
   "kubernetes": { "managerFilePatterns": ["/components/.+\\.yaml$/"] },
   "github-actions": { "enabled": false },
@@ -75,6 +76,13 @@
       "matchPackageNames": ["docker.io/apache/tika"],
       "allowedVersions": "/^3\\./",
       "versioning": "docker"
+    },
+    {
+      "description": "Valheim: merging this image restarts the game server, so it lands when nobody is playing. platformAutomerge must be off or GitHub queues the merge at PR creation and the schedule is ignored.",
+      "matchPackageNames": ["ghcr.io/bendwyer/containers/valheim-server"],
+      "automerge": true,
+      "platformAutomerge": false,
+      "automergeSchedule": ["after 4am and before 7am"]
     }
   ]
 }

@@ -1,0 +1,105 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: valheim-updater
+  namespace: valheim
+data:
+  update.sh: |
+    #!/usr/bin/env sh
+    # Restarts the server when Steam publishes a new build.
+    #
+    # Clients auto-update and the server cannot, so a server left behind stops
+    # accepting connections entirely. Nothing here pins a version: the
+    # container fetches the current build on every start, so the restart is
+    # the update and this only supplies the trigger.
+    #
+    # Two schedules share this script. The frequent one restarts only once the
+    # server has read empty for MIN_EMPTY_CHECKS runs in a row, so it never
+    # interrupts anyone. The daily one sets FORCE_RESTART and goes regardless,
+    # which is what stops a permanently occupied server holding a stale build
+    # hostage: the players keeping it busy are on old clients that still work,
+    # while everyone who has updated cannot get in to displace them.
+    set -eu
+
+    steam_app=896660
+    steam_depot=896661
+    # Required, not defaulted: a missing value must fail loudly rather than
+    # quietly target the wrong world.
+    deploy=${VALHEIM_DEPLOYMENT:?VALHEIM_DEPLOYMENT must be set}
+    state=${STATE_CONFIGMAP:?STATE_CONFIGMAP must be set}
+    force=${FORCE_RESTART:-false}
+    min_empty=${MIN_EMPTY_CHECKS:-2}
+
+    # Emitted when the session registers and whenever the count changes, so the
+    # last occurrence is the current value. No occurrence means unknown.
+    players() {
+      kubectl logs "deploy/${deploy}" --tail=5000 2>/dev/null \
+        | grep -oE 'is active with [0-9]+ player' \
+        | tail -1 | grep -oE '[0-9]+' || true
+    }
+
+    save_state() {
+      kubectl create configmap "${state}" \
+        --from-literal=gid="$1" --from-literal=empty_streak="$2" \
+        --dry-run=client -o yaml | kubectl apply -f -
+    }
+
+    remote=$(curl -fsS --retry 3 "https://api.steamcmd.net/v1/info/${steam_app}" \
+      | jq -r --arg a "${steam_app}" --arg d "${steam_depot}" \
+          '.data[$a].depots[$d].manifests.public.gid // empty')
+
+    # An unreachable or malformed version endpoint must not cause a restart.
+    case "${remote}" in
+      '' | *[!0-9]*)
+        echo "no usable manifest gid from Steam; leaving the server alone"
+        exit 0
+        ;;
+    esac
+
+    known=$(kubectl get configmap "${state}" -o jsonpath='{.data.gid}' 2>/dev/null || true)
+    streak=$(kubectl get configmap "${state}" -o jsonpath='{.data.empty_streak}' 2>/dev/null || true)
+    case "${streak}" in '' | *[!0-9]*) streak=0 ;; esac
+
+    # The streak is maintained on every run, not only while an update is
+    # pending. Counting it continuously means a build landing on a server that
+    # has been empty all night restarts on the very next check, rather than
+    # waiting for the streak to build from zero.
+    online=$(players)
+    if [ "${online}" = "0" ]; then
+      streak=$((streak + 1))
+    else
+      # Unknown counts as occupied. Guessing empty is how players get dropped
+      # without warning, and the daily backstop bounds how long that can last.
+      streak=0
+    fi
+
+    if [ -z "${known}" ]; then
+      # First run adopts what is deployed rather than restarting a server that
+      # is almost certainly already current.
+      save_state "${remote}" "${streak}"
+      echo "recorded initial manifest ${remote}"
+      exit 0
+    fi
+
+    if [ "${known}" = "${remote}" ]; then
+      save_state "${known}" "${streak}"
+      echo "manifest ${remote} unchanged (players=${online:-unknown} empty_streak=${streak})"
+      exit 0
+    fi
+
+    if [ "${force}" != "true" ] && [ "${streak}" -lt "${min_empty}" ]; then
+      save_state "${known}" "${streak}"
+      echo "update ${remote} pending, holding: players=${online:-unknown} empty_streak=${streak}/${min_empty}"
+      exit 0
+    fi
+
+    echo "manifest moved ${known} to ${remote}; restarting (force=${force} empty_streak=${streak})"
+    kubectl rollout restart "deployment/${deploy}"
+    kubectl rollout status "deployment/${deploy}" --timeout=15m
+
+    # Recorded only after a successful rollout, so a failed restart is retried
+    # on the next run rather than being marked done.
+    save_state "${remote}" 0
+
+    echo "updated to ${remote}"
