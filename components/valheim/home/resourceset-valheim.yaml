@@ -11,8 +11,9 @@ spec:
   # name: changing it does not rename a world, it starts a new empty one.
   #
   # The port is per world because that is what distinguishes servers sharing a
-  # public address. It has to be reachable: the server is unlisted, so players
-  # join by address, and the world occupies this port and the one above it.
+  # public address, and it has to be reachable: the server is unlisted, so
+  # players join by address. Leave a gap between worlds, since the server also
+  # binds the port above this one for Steam queries.
   #
   # Everything else is generated. Adding a world is an entry here plus a
   # credential item holding its password.
@@ -250,11 +251,10 @@ spec:
                 game:
                   port: << inputs.port | int >>
                   protocol: UDP
-                # Valheim opens the Steam query port at game port plus one.
-                # Derived rather than configured so the pair cannot drift.
-                query:
-                  port: << add (inputs.port | int) 1 >>
-                  protocol: UDP
+              # The Steam query port, at game port plus one, is deliberately not
+              # here. It exists to list the server in the Steam browser, which an
+              # unlisted server does not use, and A2S answers a small request with
+              # a larger reply, so exposing it offers an amplifier for nothing.
           persistence:
             server:
               enabled: true
