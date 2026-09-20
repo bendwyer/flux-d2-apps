@@ -11,8 +11,8 @@ spec:
   # name: changing it does not rename a world, it starts a new empty one.
   #
   # The port is per world because that is what distinguishes servers sharing a
-  # public address, and it is an identifier rather than a listening port that
-  # has to be reachable, since crossplay reaches players through a relay.
+  # public address. It has to be reachable: the server is unlisted, so players
+  # join by address, and the world occupies this port and the one above it.
   #
   # Everything else is generated. Adding a world is an entry here plus a
   # credential item holding its password.
@@ -228,8 +228,33 @@ spec:
                       enabled: false
                     startup:
                       enabled: false
-          # No Service and no Ingress. On the crossplay backend the server
-          # reaches players through a relay and needs egress only.
+          # A LoadBalancer rather than a hostPort, because the router forwards to
+          # a fixed address and a hostPort moves with the pod. Every world shares
+          # one address: there is a single WAN address behind it, so the external
+          # port is what has to differ, and a second address would buy nothing
+          # while consuming a pool of five.
+          #
+          # Local preserves the client address. Cluster would replace it with a
+          # node address, and the server would see every player as one host.
+          service:
+            game:
+              controller: valheim-<< inputs.name >>
+              type: LoadBalancer
+              externalTrafficPolicy: Local
+              annotations:
+                metallb.io/loadBalancerIPs: "192.168.10.47"
+                # Worlds differ by port on this one address, which MetalLB only
+                # permits when each of them agrees to the sharing key.
+                metallb.io/allow-shared-ip: "valheim"
+              ports:
+                game:
+                  port: << inputs.port | int >>
+                  protocol: UDP
+                # Valheim opens the Steam query port at game port plus one.
+                # Derived rather than configured so the pair cannot drift.
+                query:
+                  port: << add (inputs.port | int) 1 >>
+                  protocol: UDP
           persistence:
             server:
               enabled: true
