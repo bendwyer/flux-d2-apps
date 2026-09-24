@@ -7,99 +7,162 @@ metadata:
 data:
   update.sh: |
     #!/usr/bin/env sh
-    # Restarts the server when Steam publishes a new build.
+    # Restarts the server when a restart is the only fix for what it is
+    # serving: a newer Steam build, or a WAN address it no longer has.
     #
     # Clients auto-update and the server cannot, so a server left behind stops
     # accepting connections entirely. Nothing here pins a version: the
-    # container fetches the current build on every start, so the restart is
-    # the update and this only supplies the trigger.
+    # container fetches the current build on every start, so any restart is
+    # also the update.
     #
-    # Two schedules share this script. The frequent one restarts only once the
-    # server has read empty for MIN_EMPTY_CHECKS runs in a row, so it never
-    # interrupts anyone. The daily one sets FORCE_RESTART and goes regardless,
-    # which is what stops a permanently occupied server holding a stale build
-    # hostage: the players keeping it busy are on old clients that still work,
-    # while everyone who has updated cannot get in to displace them.
+    # The server looks its public address up once per process and registers
+    # its lobby under it, and joining by address searches for exactly that
+    # value. After the WAN address changes, even the server's own PlayFab
+    # reconnect re-registers the stale one, so address joins find nothing
+    # until the process restarts. Join codes are unaffected.
+    #
+    # Two schedules share this script. The frequent one waits for a new build
+    # until the server has been empty for MIN_EMPTY_SECONDS, so an update
+    # never interrupts anyone. The daily one sets FORCE_RESTART and goes
+    # regardless, which is what stops a permanently occupied server holding a
+    # stale build hostage: the players keeping it busy are on old clients that
+    # still work, while everyone who has updated cannot get in to displace
+    # them. An address change restarts at once on either schedule, because the
+    # outage behind it has already dropped every player.
     set -eu
 
     steam_app=896660
     steam_depot=896661
+    # The chart names the container after its key in the values.
+    container=app
     # Required, not defaulted: a missing value must fail loudly rather than
     # quietly target the wrong world.
     deploy=${VALHEIM_DEPLOYMENT:?VALHEIM_DEPLOYMENT must be set}
     state=${STATE_CONFIGMAP:?STATE_CONFIGMAP must be set}
     force=${FORCE_RESTART:-false}
-    min_empty=${MIN_EMPTY_CHECKS:-2}
+    min_empty=${MIN_EMPTY_SECONDS:-1800}
+    # Covers world load and PlayFab registration, and stops a server that
+    # crashes on start from being restarted on every run.
+    min_uptime=600
+    # The server logs its connection count every 600s.
+    max_count_age=900
 
-    # Emitted when the session registers and whenever the count changes, so the
-    # last occurrence is the current value. No occurrence means unknown.
-    players() {
-      kubectl logs "deploy/${deploy}" --tail=5000 2>/dev/null \
-        | grep -oE 'is active with [0-9]+ player' \
-        | tail -1 | grep -oE '[0-9]+' || true
+    now=$(date +%s)
+    log=/tmp/server.log
+
+    epoch() {
+      jq -rn --arg t "$1" '$t | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601'
+    }
+
+    is_ipv4() {
+      printf '%s\n' "$1" | grep -qE '^([0-9]{1,3}\.){3}[0-9]{1,3}$'
     }
 
     save_state() {
-      kubectl create configmap "${state}" \
-        --from-literal=gid="$1" --from-literal=empty_streak="$2" \
-        --dry-run=client -o yaml | kubectl apply -f -
+      kubectl patch configmap "${state}" --type merge \
+        -p "{\"data\":{\"gid\":\"$1\",\"empty_since\":\"$2\"}}" >/dev/null
     }
 
-    remote=$(curl -fsS --retry 3 "https://api.steamcmd.net/v1/info/${steam_app}" \
+    # Exactly one running pod, or a rollout is under way and nothing here
+    # should act on a half-replaced server.
+    selector=$(kubectl get deployment "${deploy}" -o json \
+      | jq -r '.spec.selector.matchLabels | to_entries | map("\(.key)=\(.value)") | join(",")')
+    pod=$(kubectl get pods -l "${selector}" -o json \
+      | jq -r '[.items[] | select(.status.phase == "Running" and .metadata.deletionTimestamp == null)]
+          | if length == 1 then .[0].metadata.name else empty end')
+    if [ -z "${pod}" ]; then
+      echo "no single running server pod; leaving it alone"
+      exit 0
+    fi
+
+    started=$(kubectl get pod "${pod}" -o json | jq -r --arg c "${container}" \
+      '.status.containerStatuses[] | select(.name == $c) | .state.running.startedAt // empty')
+    uptime=0
+    [ -z "${started}" ] || uptime=$((now - $(epoch "${started}")))
+
+    # The whole log of the current process, because the registration line is
+    # written once at start and a tail would lose it on a long-running server.
+    kubectl logs "${pod}" -c "${container}" --timestamps > "${log}"
+
+    # The last registration wins: an empty address at registration is filled
+    # in later by a lobby update.
+    registered=$(grep -E 'serverIP used to register the server: |Updating lobby with public IP ' "${log}" \
+      | tail -1 | sed -E 's/.*(server: |public IP )//; s/:[0-9]+[[:space:]]*$//' || true)
+
+    # Cloudflare's view of the egress address, as the ddns job uses. An outage
+    # leaves it empty and the check is skipped rather than guessed.
+    current=$(curl -4 -fsS --max-time 10 https://cloudflare.com/cdn-cgi/trace 2>/dev/null \
+      | sed -n 's/^ip=//p' || true)
+
+    # The connection count from the server's periodic stats line. The PlayFab
+    # player count is not used: it drifts and was seen reporting a player on
+    # an empty server. A missing or stale line means unknown.
+    online=""
+    count_line=$(grep -E ' Connections [0-9]+ ZDOS:' "${log}" | tail -1 || true)
+    if [ -n "${count_line}" ]; then
+      count_age=$((now - $(epoch "${count_line%% *}")))
+      if [ "${count_age}" -le "${max_count_age}" ]; then
+        online=$(printf '%s\n' "${count_line}" | sed -E 's/.* Connections ([0-9]+) ZDOS:.*/\1/')
+      fi
+    fi
+
+    remote=$(curl -fsS --retry 3 "https://api.steamcmd.net/v1/info/${steam_app}" 2>/dev/null \
       | jq -r --arg a "${steam_app}" --arg d "${steam_depot}" \
-          '.data[$a].depots[$d].manifests.public.gid // empty')
+          '.data[$a].depots[$d].manifests.public.gid // empty' || true)
+    case "${remote}" in '' | *[!0-9]*) remote="" ;; esac
 
-    # An unreachable or malformed version endpoint must not cause a restart.
-    case "${remote}" in
-      '' | *[!0-9]*)
-        echo "no usable manifest gid from Steam; leaving the server alone"
-        exit 0
-        ;;
-    esac
+    known=$(kubectl get configmap "${state}" -o jsonpath='{.data.gid}')
+    empty_since=$(kubectl get configmap "${state}" -o jsonpath='{.data.empty_since}')
+    case "${empty_since}" in *[!0-9]*) empty_since="" ;; esac
 
-    known=$(kubectl get configmap "${state}" -o jsonpath='{.data.gid}' 2>/dev/null || true)
-    streak=$(kubectl get configmap "${state}" -o jsonpath='{.data.empty_streak}' 2>/dev/null || true)
-    case "${streak}" in '' | *[!0-9]*) streak=0 ;; esac
-
-    # The streak is maintained on every run, not only while an update is
-    # pending. Counting it continuously means a build landing on a server that
-    # has been empty all night restarts on the very next check, rather than
-    # waiting for the streak to build from zero.
-    online=$(players)
+    # Unknown counts as occupied. Guessing empty is how players get dropped
+    # without warning, and the daily backstop bounds how long that can last.
     if [ "${online}" = "0" ]; then
-      streak=$((streak + 1))
+      [ -n "${empty_since}" ] || empty_since=${now}
     else
-      # Unknown counts as occupied. Guessing empty is how players get dropped
-      # without warning, and the daily backstop bounds how long that can last.
-      streak=0
+      empty_since=""
     fi
 
-    if [ -z "${known}" ]; then
-      # First run adopts what is deployed rather than restarting a server that
-      # is almost certainly already current.
-      save_state "${remote}" "${streak}"
+    # First run adopts what is deployed rather than restarting a server that
+    # is almost certainly already current.
+    if [ -z "${known}" ] && [ -n "${remote}" ]; then
+      known=${remote}
       echo "recorded initial manifest ${remote}"
+    fi
+
+    reason=""
+    status="no restart needed: manifest=${known:-unknown} address=${registered:-unknown} connections=${online:-unknown}"
+    if is_ipv4 "${registered}" && is_ipv4 "${current}" && [ "${registered}" != "${current}" ]; then
+      reason="registered address ${registered} is no longer the WAN address ${current}"
+    elif [ -n "${remote}" ] && [ "${remote}" != "${known}" ]; then
+      empty_for=0
+      [ -z "${empty_since}" ] || empty_for=$((now - empty_since))
+      if [ "${force}" = "true" ]; then
+        reason="manifest moved ${known} to ${remote}; forced"
+      elif [ -n "${empty_since}" ] && [ "${empty_for}" -ge "${min_empty}" ]; then
+        reason="manifest moved ${known} to ${remote}; empty for ${empty_for}s"
+      else
+        status="update ${remote} pending, holding: connections=${online:-unknown} empty_for=${empty_for}s/${min_empty}s"
+      fi
+    fi
+
+    if [ -n "${reason}" ] && [ "${uptime}" -lt "${min_uptime}" ]; then
+      status="holding until ${min_uptime}s uptime (${uptime}s): ${reason}"
+      reason=""
+    fi
+
+    if [ -z "${reason}" ]; then
+      save_state "${known}" "${empty_since}"
+      echo "${status}"
       exit 0
     fi
 
-    if [ "${known}" = "${remote}" ]; then
-      save_state "${known}" "${streak}"
-      echo "manifest ${remote} unchanged (players=${online:-unknown} empty_streak=${streak})"
-      exit 0
-    fi
-
-    if [ "${force}" != "true" ] && [ "${streak}" -lt "${min_empty}" ]; then
-      save_state "${known}" "${streak}"
-      echo "update ${remote} pending, holding: players=${online:-unknown} empty_streak=${streak}/${min_empty}"
-      exit 0
-    fi
-
-    echo "manifest moved ${known} to ${remote}; restarting (force=${force} empty_streak=${streak})"
+    echo "restarting: ${reason}"
     kubectl rollout restart "deployment/${deploy}"
     kubectl rollout status "deployment/${deploy}" --timeout=15m
 
-    # Recorded only after a successful rollout, so a failed restart is retried
-    # on the next run rather than being marked done.
-    save_state "${remote}" 0
-
-    echo "updated to ${remote}"
+    # Any restart installs the current build, so it is recorded whichever
+    # reason triggered it. Recorded only after a successful rollout, so a
+    # failed restart is retried on the next run rather than being marked done.
+    save_state "${remote:-${known}}" ""
+    echo "restarted"
