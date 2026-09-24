@@ -22,8 +22,10 @@ spec:
       credentialsItem: "uzjdzszpgjth543epmhdjbx33q"
 
   resources:
-    # Each world's updater can touch only its own deployment and its own
-    # state, so one world cannot restart another.
+    # Each world's updater can restart only its own deployment and write only
+    # its own state, so one world cannot restart another. Pods and their logs
+    # stay namespace-wide, because pod names are generated and cannot be
+    # listed in resourceNames.
     - apiVersion: v1
       kind: ServiceAccount
       metadata:
@@ -42,16 +44,24 @@ spec:
         - apiGroups: [""]
           resources: ["pods/log"]
           verbs: ["get"]
+        # list and watch honour resourceNames because rollout status selects
+        # the deployment by a metadata.name field selector.
         - apiGroups: ["apps"]
           resources: ["deployments"]
+          resourceNames: ["valheim-<< inputs.name >>"]
           verbs: ["get", "list", "watch", "patch"]
         - apiGroups: [""]
           resources: ["configmaps"]
-          verbs: ["create"]
-        - apiGroups: [""]
-          resources: ["configmaps"]
           resourceNames: ["valheim-<< inputs.name >>-updater-state"]
-          verbs: ["get", "update", "patch"]
+          verbs: ["get", "patch"]
+
+    # Declared empty so the updater needs no create permission. It owns the
+    # data keys, which this manifest never sets and so never reverts.
+    - apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: valheim-<< inputs.name >>-updater-state
+        namespace: valheim
 
     - apiVersion: rbac.authorization.k8s.io/v1
       kind: RoleBinding
@@ -276,9 +286,9 @@ spec:
         name: valheim-<< inputs.name >>-updater
         namespace: valheim
       spec:
-        # Bounds how long the server can sit on an older build than the
-        # clients, which is the window in which nobody can join.
-        schedule: "*/15 * * * *"
+        # Bounds how long the server can sit on a stale address or an older
+        # build than the clients, the windows in which players cannot join.
+        schedule: "*/5 * * * *"
         timeZone: "Etc/UTC"
         concurrencyPolicy: Forbid
         successfulJobsHistoryLimit: 3
@@ -307,8 +317,8 @@ spec:
                         value: valheim-<< inputs.name >>
                       - name: STATE_CONFIGMAP
                         value: valheim-<< inputs.name >>-updater-state
-                      - name: MIN_EMPTY_CHECKS
-                        value: "2"
+                      - name: MIN_EMPTY_SECONDS
+                        value: "1800"
                     resources:
                       requests:
                         cpu: 10m
