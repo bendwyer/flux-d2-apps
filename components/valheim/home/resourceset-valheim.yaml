@@ -201,7 +201,7 @@ spec:
                 app:
                   image:
                     repository: ghcr.io/bendwyer/containers/valheim-server
-                    tag: "1.0.2@sha256:76af7e9e0d10a600c377622ad16e10bcd5d1b8b80a97ea339381f77a0f23678e"
+                    tag: "1.0.2@sha256:35c6512f93f941040982eceb8bd676a1fe2530594e405df04607145612b4cb8d"
                     pullPolicy: IfNotPresent
                   securityContext:
                     allowPrivilegeEscalation: false
