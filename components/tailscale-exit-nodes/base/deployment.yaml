@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: tailscale-exit-nodes
-          image: ghcr.io/bendwyer/containers/tailscale-exit-nodes:1.2.1@sha256:d4329031fa7bd1582926f72d4b554a3948450c2b1488d91651320b0d0161f265
+          image: ghcr.io/bendwyer/containers/tailscale-exit-nodes:1.2.1@sha256:25c5f646ad38268884d732f06fa00330e382a1cb86da4576f2be63ee624ea777
           ports:
             - containerPort: 8080
           env:
