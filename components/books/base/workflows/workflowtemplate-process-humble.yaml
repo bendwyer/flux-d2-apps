@@ -608,7 +608,7 @@ spec:
           persistentVolumeClaim:
             claimName: "{{inputs.parameters.pvc_name}}"
       container:
-        image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.19@sha256:8f03ed21e36897cdc708f362b97294419da148ba1c5e483c644ac854437bfa6d
+        image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.19@sha256:779f027ab40d3b45a53aa9d171cebfdcd0cc5fa3e2cc0b0dfc18105907bf9d72
         command: ["sh", "-c"]
         env:
           - name: HOME
@@ -706,7 +706,7 @@ spec:
           persistentVolumeClaim:
             claimName: "{{inputs.parameters.pvc_name}}"
       container:
-        image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.19@sha256:8f03ed21e36897cdc708f362b97294419da148ba1c5e483c644ac854437bfa6d
+        image: ghcr.io/bendwyer/containers/comics-metadata-agent:0.3.19@sha256:779f027ab40d3b45a53aa9d171cebfdcd0cc5fa3e2cc0b0dfc18105907bf9d72
         command: ["sh", "-c"]
         env:
           - name: HOME
