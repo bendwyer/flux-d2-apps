@@ -221,7 +221,7 @@ spec:
         mutexes:
           - name: scratch-pvc
       container:
-        image: ghcr.io/bendwyer/containers/epub2cbz:2.1@sha256:9216672c6d505c3d69d76dfaf658f9e91c110df6780230d78e2e00a630de46c3
+        image: ghcr.io/bendwyer/containers/epub2cbz:2.1@sha256:8eb2cbb23f566fd6c66ff189aa7ebb24b420239127cbac5d0b9452816d9cf466
         command: ["python3", "/app/epub2cbz.py"]
         args:
           - --input-dir
