@@ -403,7 +403,7 @@ spec:
           persistentVolumeClaim:
             claimName: "{{inputs.parameters.pvc_name}}"
       container:
-        image: ghcr.io/bendwyer/containers/humble-sorter:1.0.0@sha256:97a14132b2134f0a2e578d706095c7bab783f775592261413c9a538c57e2bad8
+        image: ghcr.io/bendwyer/containers/humble-sorter:1.0.0@sha256:84006391d855e991fe69d58e7511620e271bf0845ca52d35003b33f215de1a6e
         command: ["python", "-B", "/app/humble_sorter.py"]
         args:
           - --bundle-dir
