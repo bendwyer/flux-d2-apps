@@ -87,6 +87,11 @@
       "versioning": "docker"
     },
     {
+      "description": "Gotenberg: hold at 8.x until paperless-ngx ships a gotenberg-client that speaks Gotenberg 9; Gotenberg 9 dropped /forms/pdfengines/*, which paperless calls to merge converted Office and email documents.",
+      "matchPackageNames": ["docker.io/gotenberg/gotenberg"],
+      "allowedVersions": "/^8\\./"
+    },
+    {
       "description": "Valheim: merging this image restarts the game server, so it lands when nobody is playing. platformAutomerge must be off or GitHub queues the merge at PR creation and the schedule is ignored.",
       "matchPackageNames": ["ghcr.io/bendwyer/containers/valheim-server"],
       "automerge": true,
