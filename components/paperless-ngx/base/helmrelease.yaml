@@ -25,7 +25,7 @@ spec:
           app:
             image:
               repository: ghcr.io/paperless-ngx/paperless-ngx
-              tag: "3.5@sha256:8508853b8a0f8394074260957d0be186c8c64f346973b24a7583de4580f306b9"
+              tag: "3.5.1@sha256:8508853b8a0f8394074260957d0be186c8c64f346973b24a7583de4580f306b9"
               pullPolicy: IfNotPresent
             env:
               # The chart sorts env vars by name, so this is set before
