@@ -444,7 +444,7 @@ spec:
           persistentVolumeClaim:
             claimName: "{{inputs.parameters.pvc_name}}"
       container:
-        image: ghcr.io/bendwyer/containers/kcc:13.0.1@sha256:75ccf839184b22c125383f3c0c07ef731bc906449d2e763dee4b277ddae64b5b
+        image: ghcr.io/bendwyer/containers/kcc:13.0.1@sha256:d92e8b6515e73d30f3f186a15d8e9c5b8cc7f8def82acb08a909c8e19906c04f
         command: ["sh", "-c"]
         env:
           - name: BUNDLE_NAME
@@ -517,7 +517,7 @@ spec:
           persistentVolumeClaim:
             claimName: "{{inputs.parameters.pvc_name}}"
       container:
-        image: ghcr.io/bendwyer/containers/kcc:13.0.1@sha256:75ccf839184b22c125383f3c0c07ef731bc906449d2e763dee4b277ddae64b5b
+        image: ghcr.io/bendwyer/containers/kcc:13.0.1@sha256:d92e8b6515e73d30f3f186a15d8e9c5b8cc7f8def82acb08a909c8e19906c04f
         command: ["sh", "-c"]
         env:
           - name: BUNDLE_NAME
