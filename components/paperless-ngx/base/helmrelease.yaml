@@ -67,8 +67,12 @@ spec:
                     name: paperless-ngx-db-app
                     key: password
 
-              # Also sets the allowed hosts, CORS and CSRF origins.
+              # Also sets the CORS and CSRF origins, and adds its host to the
+              # allowed hosts below.
               PAPERLESS_URL: https://paperless.tail0c49c.ts.net
+              # Since 3.5, setting PAPERLESS_URL drops the "*" default, so
+              # in-cluster clients such as the MCP server need the Service name.
+              PAPERLESS_ALLOWED_HOSTS: paperless-ngx.paperless-ngx.svc.cluster.local
               PAPERLESS_SECRET_KEY:
                 valueFrom:
                   secretKeyRef:
